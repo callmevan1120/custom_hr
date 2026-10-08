@@ -1,0 +1,400 @@
+/* Employee Attendance Gallery — desk page */
+
+.eag-page {
+	padding: 0 15px 32px;
+}
+
+/* ------------------------------- filters ------------------------------- */
+
+.eag-filters {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 2px 0 12px;
+	border-bottom: 1px solid var(--border-color);
+	margin-bottom: 16px;
+}
+
+.eag-filter {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.eag-filter .frappe-control,
+.eag-filter .form-group {
+	margin-bottom: 0;
+}
+
+.eag-f-company {
+	min-width: 150px;
+}
+
+.eag-f-preset {
+	min-width: 130px;
+}
+
+.eag-f-from_date,
+.eag-f-to_date {
+	min-width: 115px;
+}
+
+.eag-f-search {
+	min-width: 150px;
+}
+
+.eag-f-log_type {
+	min-width: 105px;
+}
+
+.eag-f-face_verified {
+	min-width: 120px;
+}
+
+.eag-actions {
+	flex: 0 0 auto;
+	align-self: flex-end;
+}
+
+.eag-actions-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 30px;
+}
+
+.eag-refresh {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 30px;
+	width: 34px;
+	padding: 0;
+}
+
+.eag-refresh svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* ------------------------------- status -------------------------------- */
+
+.eag-status {
+	color: var(--text-muted);
+	font-size: 12.5px;
+	margin-bottom: 12px;
+}
+
+.eag-status:empty {
+	display: none;
+}
+
+/* --------------------------------- grid --------------------------------- */
+
+.eag-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 14px;
+	margin-bottom: 16px;
+}
+
+.eag-card {
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	overflow: hidden;
+	cursor: pointer;
+	transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.eag-card:hover {
+	box-shadow: var(--shadow-md);
+	transform: translateY(-1px);
+}
+
+.eag-photo {
+	position: relative;
+	aspect-ratio: 1 / 1;
+	background: #141414;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.eag-photo-img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.eag-photo-empty {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+	font-size: 26px;
+	font-weight: 600;
+	background: var(--gray-100);
+}
+
+.eag-log {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: #fff;
+}
+
+.eag-log-in {
+	background: #16a34a;
+}
+
+.eag-log-out {
+	background: #ea580c;
+}
+
+.eag-badge-wrap {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	gap: 4px;
+}
+
+.eag-badge {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	color: #fff;
+}
+
+.eag-badge-present {
+	background: #16a34a;
+}
+
+.eag-badge-late {
+	background: #ea580c;
+}
+
+.eag-badge-half {
+	background: #ca8a04;
+}
+
+.eag-badge-absent {
+	background: #dc2626;
+}
+
+.eag-badge-leave {
+	background: #2563eb;
+}
+
+.eag-badge-none {
+	background: var(--gray-600);
+}
+
+.eag-card-body {
+	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.eag-name {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.eag-line {
+	font-size: 13px;
+	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.eag-muted {
+	color: var(--text-muted);
+}
+
+/* ------------------------------ employee list --------------------------- */
+
+.eag-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
+.eag-row {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	background: var(--card-bg);
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	padding: 10px 14px;
+	cursor: pointer;
+}
+
+.eag-row:hover {
+	box-shadow: var(--shadow-sm);
+}
+
+.eag-avatar {
+	width: 38px;
+	height: 38px;
+	min-width: 38px;
+	border-radius: 50%;
+	background: var(--gray-500);
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 600;
+	flex-shrink: 0;
+}
+
+.eag-row-main {
+	flex: 1;
+	min-width: 160px;
+}
+
+.eag-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: flex-end;
+	max-width: 55%;
+}
+
+.eag-chip {
+	font-size: 12px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: var(--gray-100);
+	color: var(--text-color);
+	white-space: nowrap;
+}
+
+.eag-chip-present {
+	background: #dcfce7;
+}
+
+.eag-chip-late {
+	background: #ffedd5;
+}
+
+.eag-chip-half {
+	background: #fef9c3;
+}
+
+.eag-chip-absent {
+	background: #fee2e2;
+}
+
+.eag-chip-leave {
+	background: #dbeafe;
+}
+
+.eag-open {
+	flex-shrink: 0;
+}
+
+/* ------------------------------ drill-down ------------------------------ */
+
+.eag-employee-header {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+	margin-bottom: 14px;
+}
+
+.eag-breadcrumb {
+	font-size: 13px;
+	color: var(--text-color);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.eag-breadcrumb a {
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.eag-breadcrumb a:hover {
+	color: var(--text-color);
+	text-decoration: underline;
+}
+
+.eag-crumb-sep {
+	color: var(--text-muted);
+}
+
+.eag-more {
+	display: flex;
+	justify-content: center;
+	padding: 8px 0 24px;
+}
+
+/* --------------------------------- modal -------------------------------- */
+
+.eag-modal {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.eag-modal-log {
+	display: flex;
+	gap: 16px;
+	border: 1px solid var(--border-color);
+	border-radius: 10px;
+	padding: 12px;
+}
+
+.eag-modal-photo {
+	width: 180px;
+	height: auto;
+	flex: 1 1 auto;
+	object-fit: contain;
+	background: #141414;
+	border-radius: 8px;
+}
+
+.eag-modal-photo.eag-photo-empty {
+	background: var(--gray-100);
+}
+
+.eag-modal-col {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+	min-width: 0;
+}
+
+.eag-modal-photo-col {
+	flex: 0 0 auto;
+}
+
+.eag-map {
+	width: 100%;
+	flex: 1 1 auto;
+	min-height: 140px;
+	border: 0;
+	border-radius: 8px;
+	margin-top: 6px;
+}

@@ -1,0 +1,107 @@
+[
+ {
+  "doctype": "Custom Field",
+  "name": "HR Settings-enable_face_checkin",
+  "dt": "HR Settings",
+  "fieldname": "enable_face_checkin",
+  "fieldtype": "Check",
+  "label": "Enable Face Checkin",
+  "default": "0",
+  "insert_after": "allow_geolocation_tracking",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "HR Settings-require_face_checkin",
+  "dt": "HR Settings",
+  "fieldname": "require_face_checkin",
+  "fieldtype": "Check",
+  "label": "Require Face Verification for Checkin",
+  "default": "0",
+  "depends_on": "enable_face_checkin",
+  "insert_after": "enable_face_checkin",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "HR Settings-face_match_threshold",
+  "dt": "HR Settings",
+  "fieldname": "face_match_threshold",
+  "fieldtype": "Float",
+  "label": "Face Match Threshold",
+  "default": "0.5",
+  "depends_on": "enable_face_checkin",
+  "description": "Maximum allowed Euclidean distance between enrolled face and check-in face. Lower is stricter.",
+  "insert_after": "require_face_checkin",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "HR Settings-face_enroll_samples",
+  "dt": "HR Settings",
+  "fieldname": "face_enroll_samples",
+  "fieldtype": "Int",
+  "label": "Face Enrollment Samples",
+  "default": "5",
+  "depends_on": "enable_face_checkin",
+  "description": "Number of face samples captured during enrollment (recommended: 5, covering straight and both side profiles).",
+  "insert_after": "face_match_threshold",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Checkin-face_verification_section",
+  "dt": "Employee Checkin",
+  "fieldname": "face_verification_section",
+  "fieldtype": "Section Break",
+  "label": "Face Verification",
+  "collapsible": 1,
+  "insert_after": "shift_actual_end",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Checkin-face_verified",
+  "dt": "Employee Checkin",
+  "fieldname": "face_verified",
+  "fieldtype": "Check",
+  "label": "Face Verified",
+  "default": "0",
+  "read_only": 1,
+  "in_list_view": 1,
+  "insert_after": "face_verification_section",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Checkin-face_score",
+  "dt": "Employee Checkin",
+  "fieldname": "face_score",
+  "fieldtype": "Float",
+  "label": "Face Match Score",
+  "precision": "4",
+  "read_only": 1,
+  "insert_after": "face_verified",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Checkin-column_break_face",
+  "dt": "Employee Checkin",
+  "fieldname": "column_break_face",
+  "fieldtype": "Column Break",
+  "insert_after": "face_score",
+  "module": "Custom HR"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Checkin-face_photo",
+  "dt": "Employee Checkin",
+  "fieldname": "face_photo",
+  "fieldtype": "Attach Image",
+  "label": "Face Photo",
+  "read_only": 1,
+  "insert_after": "column_break_face",
+  "module": "Custom HR"
+ }
+]

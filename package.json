@@ -1,0 +1,10 @@
+{
+	"private": true,
+	"name": "custom_hr",
+	"description": "Custom HR extensions on top of Frappe HR: attendance gallery, face check-in, realtime attendance marking",
+	"scripts": {
+		"postinstall": "cd frontend && yarn install --check-files",
+		"build": "cd frontend && yarn build",
+		"dev": "cd frontend && yarn dev"
+	}
+}
