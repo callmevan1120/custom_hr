@@ -64,7 +64,7 @@ export default defineConfig({
 		},
 	},
 	build: {
-		outDir: "../hrms/public/frontend",
+		outDir: "../custom_hr/public/frontend",
 		emptyOutDir: true,
 		target: "es2015",
 		commonjsOptions: {
