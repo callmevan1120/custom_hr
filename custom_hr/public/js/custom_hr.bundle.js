@@ -1,8 +1,10 @@
 // Frappe desk caches standard pages in localStorage, which keeps stale page
-// scripts/styles after an update. Drop the cached attendance gallery page on
-// every desk boot so it always loads the current version from the app.
-try {
-	localStorage.removeItem("_page:employee-attendance-gallery");
-} catch (e) {
-	// ignore storage errors (private mode etc.)
+// scripts/styles after an update. Drop cached app pages on every desk boot so
+// they always load the current version from the app.
+for (const page of ["employee-attendance-gallery", "outlet-roster"]) {
+	try {
+		localStorage.removeItem(`_page:${page}`);
+	} catch (e) {
+		// ignore storage errors (private mode etc.)
+	}
 }

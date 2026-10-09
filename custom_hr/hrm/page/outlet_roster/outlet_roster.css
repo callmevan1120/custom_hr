@@ -1,0 +1,111 @@
+.or-toolbar {
+	display: flex;
+	align-items: flex-end;
+	gap: 16px;
+	margin-bottom: 12px;
+}
+
+.or-outlet-select {
+	width: 320px;
+}
+
+.or-nav {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-bottom: 2px;
+}
+
+.or-month {
+	font-size: 15px;
+	font-weight: 600;
+	min-width: 140px;
+	text-align: center;
+}
+
+.or-grid {
+	overflow: auto;
+	border: 1px solid #e5e7eb;
+	border-radius: 8px;
+}
+
+.or-table {
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 12px;
+	width: 100%;
+}
+
+.or-table th,
+.or-table td {
+	border-bottom: 1px solid #f1f5f9;
+	padding: 3px 6px;
+}
+
+.or-emp {
+	position: sticky;
+	left: 0;
+	background: #fff;
+	text-align: left;
+	min-width: 160px;
+	font-weight: 500;
+	z-index: 1;
+	border-right: 1px solid #e5e7eb;
+}
+
+th.or-day {
+	min-width: 36px;
+	text-align: center;
+	font-weight: 500;
+	color: #6b7280;
+}
+
+th.or-day.is-off {
+	color: #dc2626;
+}
+
+td.or-cell {
+	text-align: center;
+	cursor: pointer;
+	height: 28px;
+}
+
+td.or-cell:hover {
+	background: #f0fdfa;
+}
+
+.or-chip {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 11px;
+	color: #fff;
+	white-space: nowrap;
+}
+
+.or-hol {
+	color: #dc2626;
+	font-size: 10px;
+}
+
+.or-empty {
+	color: #9ca3af;
+	padding: 32px;
+	text-align: center;
+}
+
+.or-dialog {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.or-pick,
+.or-clear {
+	text-align: left;
+}
+
+.or-pick.is-active {
+	background: #f0fdfa;
+	border-color: #0f766e;
+}

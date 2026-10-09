@@ -1,0 +1,35 @@
+{
+ "content": null,
+ "creation": "2026-10-09 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-10-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRM",
+ "name": "outlet-roster",
+ "owner": "Administrator",
+ "page_name": "outlet-roster",
+ "roles": [
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Outlet Leader"
+  },
+  {
+   "role": "SPV Outlet"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Roster Outlet"
+}
