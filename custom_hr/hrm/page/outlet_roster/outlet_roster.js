@@ -34,6 +34,7 @@ class OutletRoster {
 				<select class="form-control or-outlet-select">
 					<option value="">${__("Memuat outlet...")}</option>
 				</select>
+				<button class="btn btn-default btn-sm or-swap">${__("Tukar Libur")}</button>
 				<div class="or-nav">
 					<button class="btn btn-default btn-sm or-prev">&lsaquo;</button>
 					<span class="or-month"></span>
@@ -53,6 +54,7 @@ class OutletRoster {
 			this.load();
 		});
 		this.page.main.on("click", ".or-cell", (event) => this.pick_shift(event.currentTarget));
+		this.page.main.on("click", ".or-swap", () => this.open_swap_dialog());
 
 		this.load_outlets();
 	}
@@ -159,6 +161,93 @@ class OutletRoster {
 			html = `<div class="or-empty">${__("Belum ada karyawan aktif di outlet ini")}</div>`;
 		}
 		this.page.main.find(".or-grid").html(html);
+	}
+
+	open_swap_dialog() {
+		if (!this.selected_outlet || !this.data) {
+			frappe.msgprint(__("Pilih outlet terlebih dahulu"));
+			return;
+		}
+
+		const employees = this.data.employees;
+		const options = this.data.shift_options || [];
+		const dialog = new frappe.ui.Dialog({
+			title: __("Tukar Hari Libur — {0}", [this.selected_outlet]),
+			fields: [{ fieldtype: "HTML", fieldname: "body" }],
+			primary_action_label: __("Terapkan"),
+			primary_action: () => this.apply_swap(dialog),
+		});
+
+		const shift_options = options
+			.map(
+				(o) =>
+					`<option value="${frappe.utils.escape_html(o.value)}">${frappe.utils.escape_html(o.value)}</option>`
+			)
+			.join("");
+		const employee_rows = employees
+			.map(
+				(e) =>
+					`<label><input type="checkbox" class="or-swap-emp" data-employee="${e.value}" checked> ${frappe.utils.escape_html(e.label)}</label>`
+			)
+			.join("");
+
+		dialog.fields_dict.body.$wrapper.html(`
+			<div class="or-swap-form">
+				<div class="or-swap-row">
+					<label>${__("Tanggal Kerja (masuk)")}<input type="date" class="form-control or-swap-work"></label>
+					<label>${__("Tanggal Libur (pengganti)")}<input type="date" class="form-control or-swap-off"></label>
+				</div>
+				<label>${__("Shift untuk tanggal kerja")}
+					<select class="form-control or-swap-shift">
+						<option value="">${__("Sesuai jadwal tanggal libur")}</option>
+						${shift_options}
+					</select>
+				</label>
+				<div class="or-swap-emps">
+					<label class="or-swap-all-label"><input type="checkbox" class="or-swap-all" checked> ${__("Semua karyawan")}</label>
+					${employee_rows}
+				</div>
+			</div>
+		`);
+		dialog.$wrapper.on("change", ".or-swap-all", (event) => {
+			dialog.$wrapper.find(".or-swap-emp").prop("checked", event.currentTarget.checked);
+		});
+		dialog.show();
+	}
+
+	apply_swap(dialog) {
+		const wrapper = dialog.$wrapper;
+		const work_date = wrapper.find(".or-swap-work").val();
+		const off_date = wrapper.find(".or-swap-off").val();
+		const shift_type = wrapper.find(".or-swap-shift").val() || null;
+		const employees = wrapper
+			.find(".or-swap-emp:checked")
+			.map((_, element) => element.dataset.employee)
+			.get();
+		if (!work_date || !off_date) {
+			frappe.msgprint(__("Isi tanggal kerja dan tanggal libur"));
+			return;
+		}
+		if (!employees.length) {
+			frappe.msgprint(__("Pilih minimal satu karyawan"));
+			return;
+		}
+
+		frappe.call({
+			method: "custom_hr.api.roster.swap_off_days",
+			args: { outlet: this.selected_outlet, work_date, off_date, shift_type, employees },
+			freeze: true,
+			freeze_message: __("Menukar jadwal..."),
+			callback: (r) => {
+				if (r.exc) return;
+				dialog.hide();
+				frappe.show_alert({
+					message: __("Jadwal ditukar: {0} karyawan", [r.message.moved]),
+					indicator: "green",
+				});
+				this.load();
+			},
+		});
 	}
 
 	pick_shift(cell) {

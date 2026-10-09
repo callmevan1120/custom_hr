@@ -62,21 +62,57 @@ def set_shift(outlet: str, employee: str, date: str, shift_type: str | None = No
 
 	_remove_assignments(employee, date)
 	if shift_type:
-		frappe.get_doc(
-			{
-				"doctype": "Shift Assignment",
-				"employee": employee,
-				"employee_name": frappe.db.get_value("Employee", employee, "employee_name"),
-				"company": frappe.db.get_value("Employee", employee, "company"),
-				"shift_type": shift_type,
-				"start_date": date,
-				"end_date": date,
-				"status": "Active",
-			}
-		).insert(ignore_permissions=True)
+		_set_assignment(employee, date, shift_type)
 
 	frappe.db.commit()
 	return {"employee": employee, "date": date, "shift_type": shift_type}
+
+
+@frappe.whitelist()
+def swap_off_days(
+	outlet: str,
+	work_date: str,
+	off_date: str,
+	shift_type: str | None = None,
+	employees: str | None = None,
+):
+	"""Move selected employees' work from off_date to work_date (libur ditukar)."""
+	_check_outlet_access(outlet)
+	if not work_date or not off_date or work_date == off_date:
+		frappe.throw(_("Tanggal kerja dan tanggal libur harus berbeda"))
+
+	outlet_employees = frappe.get_all(
+		"Employee", filters={"outlet": outlet, "status": "Active"}, pluck="name", ignore_permissions=True
+	)
+	selected = frappe.parse_json(employees) if employees else outlet_employees
+	selected = [employee for employee in selected if employee in outlet_employees]
+	if not selected:
+		frappe.throw(_("Tidak ada karyawan yang dipilih"))
+
+	blocked = [employee for employee in selected if _holiday_map(employee, work_date, work_date)]
+	if blocked:
+		names = ", ".join(
+			frappe.db.get_value("Employee", employee, "employee_name") or employee for employee in blocked
+		)
+		frappe.throw(
+			_("Tanggal kerja {0} adalah hari libur untuk: {1}").format(frappe.bold(work_date), names)
+		)
+
+	moved = skipped = 0
+	for employee in selected:
+		target_shift = shift_type or _assignment_on(employee, off_date)
+		_remove_assignments(employee, off_date)
+		if target_shift:
+			_remove_assignments(employee, work_date)
+			_set_assignment(employee, work_date, target_shift)
+			moved += 1
+		elif _assignment_on(employee, work_date):
+			moved += 1
+		else:
+			skipped += 1
+
+	frappe.db.commit()
+	return {"moved": moved, "skipped": skipped}
 
 
 def _check_outlet_access(outlet):
@@ -190,6 +226,37 @@ def _remove_assignments(employee, date):
 		if end > getdate(date):
 			_duplicate_assignment(row.name, add_days(date, 1), row.end_date)
 		frappe.delete_doc("Shift Assignment", row.name, ignore_permissions=True, force=True)
+
+
+def _set_assignment(employee, date, shift_type):
+	frappe.get_doc(
+		{
+			"doctype": "Shift Assignment",
+			"employee": employee,
+			"employee_name": frappe.db.get_value("Employee", employee, "employee_name"),
+			"company": frappe.db.get_value("Employee", employee, "company"),
+			"shift_type": shift_type,
+			"start_date": date,
+			"end_date": date,
+			"status": "Active",
+		}
+	).insert(ignore_permissions=True)
+
+
+def _assignment_on(employee, date):
+	rows = frappe.get_all(
+		"Shift Assignment",
+		filters={
+			"employee": employee,
+			"docstatus": ["!=", 2],
+			"status": "Active",
+			"start_date": ["<=", date],
+			"end_date": [">=", date],
+		},
+		fields=["shift_type"],
+		ignore_permissions=True,
+	)
+	return rows[0].shift_type if rows else None
 
 
 def _duplicate_assignment(name, start_date, end_date):
