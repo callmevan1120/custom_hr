@@ -33,10 +33,12 @@ app_include_js = "custom_hr.bundle.js"
 
 doctype_js = {
 	"Employee": "public/js/employee_face.js",
+	"Outlet": "public/js/outlet.js",
 }
 
 doctype_list_js = {
 	"Employee Checkin": "public/js/employee_checkin_list.js",
+	"Outlet": "public/js/outlet.js",
 }
 
 # ----------------------------------------------------------------------------
@@ -61,6 +63,7 @@ fixtures = [
 				"name",
 				"in",
 				[
+					"Employee-outlet",
 					"Employee Checkin-face_verification_section",
 					"Employee Checkin-face_verified",
 					"Employee Checkin-face_score",

@@ -1,6 +1,18 @@
 [
  {
   "doctype": "Custom Field",
+  "name": "Employee-outlet",
+  "dt": "Employee",
+  "fieldname": "outlet",
+  "fieldtype": "Link",
+  "options": "Outlet",
+  "label": "Outlet",
+  "insert_after": "company",
+  "in_standard_filter": 1,
+  "module": "HRM"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "HR Settings-enable_face_checkin",
   "dt": "HR Settings",
   "fieldname": "enable_face_checkin",
