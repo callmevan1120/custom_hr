@@ -1,7 +1,7 @@
 app_name = "custom_hr"
-app_title = "Absensi"
+app_title = "HRM"
 app_publisher = "callmevan1120"
-app_description = "Absensi: attendance gallery, face check-in and realtime attendance on top of Frappe HR"
+app_description = "HRM: HR app with attendance gallery, face check-in and realtime attendance on top of Frappe HR"
 app_email = "admin@example.com"
 app_license = "mit"
 required_apps = ["hrms"]
@@ -13,8 +13,8 @@ required_apps = ["hrms"]
 add_to_apps_screen = [
 	{
 		"name": "custom_hr",
-		"logo": "/assets/custom_hr/images/absensi-logo.svg",
-		"title": "Absensi",
+		"logo": "/assets/custom_hr/images/hrm-logo.svg",
+		"title": "HRM",
 		"route": "/app/employee-attendance-gallery",
 	}
 ]

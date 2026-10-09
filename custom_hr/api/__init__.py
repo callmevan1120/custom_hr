@@ -1,7 +1,7 @@
 # Copyright (c) 2026, callmevan1120 and contributors
 # For license information, please see license.txt
 
-"""Absensi whitelisted APIs.
+"""HRM whitelisted APIs.
 
 These extend Frappe HR (attendance gallery, lateness calendar, leave usage)
 without modifying the hrms app itself.

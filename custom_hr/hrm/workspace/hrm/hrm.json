@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"hdr1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Absensi</b></span>\",\"col\":12}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Attendance Gallery\",\"col\":4}},{\"id\":\"sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
+ "content": "[{\"id\":\"hdr1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>HRM</b></span>\",\"col\":12}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Employee Attendance Gallery\",\"col\":4}},{\"id\":\"sp1\",\"type\":\"spacer\",\"data\":{\"col\":12}}]",
  "creation": "2026-10-09 00:00:00.000000",
  "docstatus": 0,
  "doctype": "Workspace",
@@ -9,12 +9,12 @@
  "icon": "tool",
  "idx": 0,
  "is_hidden": 0,
- "label": "Absensi",
+ "label": "HRM",
  "links": [],
  "modified": "2026-10-09 00:00:00.000000",
  "modified_by": "Administrator",
- "module": "Absensi",
- "name": "Absensi",
+ "module": "HRM",
+ "name": "HRM",
  "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
@@ -31,5 +31,5 @@
    "type": "Page"
   }
  ],
- "title": "Absensi"
+ "title": "HRM"
 }
