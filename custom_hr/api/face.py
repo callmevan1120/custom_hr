@@ -9,7 +9,7 @@ from frappe import _
 from frappe.utils import flt, now_datetime
 
 from hrms.api import get_current_employee
-from custom_hr.custom_hr.hr.doctype.employee_face_profile.employee_face_profile import FACE_DESCRIPTOR_LENGTH
+from custom_hr.custom_hr.doctype.employee_face_profile.employee_face_profile import FACE_DESCRIPTOR_LENGTH
 from hrms.hr.utils import validate_active_employee
 
 HR_ROLES = ("HR Manager", "HR User", "System Manager")
