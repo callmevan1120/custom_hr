@@ -1,10 +1,23 @@
 app_name = "custom_hr"
-app_title = "Custom HR"
+app_title = "Absensi"
 app_publisher = "callmevan1120"
 app_description = "Custom HR extensions on top of Frappe HR: attendance gallery, face check-in, realtime attendance marking"
 app_email = "admin@example.com"
 app_license = "mit"
 required_apps = ["hrms"]
+
+# ----------------------------------------------------------------------------
+# App switcher entry (own icon, separate from Frappe HR)
+# ----------------------------------------------------------------------------
+
+add_to_apps_screen = [
+	{
+		"name": "custom_hr",
+		"logo": "/assets/custom_hr/images/absensi-logo.svg",
+		"title": "Absensi",
+		"route": "/app/employee-attendance-gallery",
+	}
+]
 
 # ----------------------------------------------------------------------------
 # Desk assets
