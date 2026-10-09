@@ -8,7 +8,7 @@
   "label": "Enable Face Checkin",
   "default": "0",
   "insert_after": "allow_geolocation_tracking",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -20,7 +20,7 @@
   "default": "0",
   "depends_on": "enable_face_checkin",
   "insert_after": "enable_face_checkin",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -33,7 +33,7 @@
   "depends_on": "enable_face_checkin",
   "description": "Maximum allowed Euclidean distance between enrolled face and check-in face. Lower is stricter.",
   "insert_after": "require_face_checkin",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -46,7 +46,7 @@
   "depends_on": "enable_face_checkin",
   "description": "Number of face samples captured during enrollment (recommended: 5, covering straight and both side profiles).",
   "insert_after": "face_match_threshold",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -57,7 +57,7 @@
   "label": "Face Verification",
   "collapsible": 1,
   "insert_after": "shift_actual_end",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -70,7 +70,7 @@
   "read_only": 1,
   "in_list_view": 1,
   "insert_after": "face_verification_section",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -82,7 +82,7 @@
   "precision": "4",
   "read_only": 1,
   "insert_after": "face_verified",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -91,7 +91,7 @@
   "fieldname": "column_break_face",
   "fieldtype": "Column Break",
   "insert_after": "face_score",
-  "module": "Custom HR"
+  "module": "Absensi"
  },
  {
   "doctype": "Custom Field",
@@ -102,6 +102,6 @@
   "label": "Face Photo",
   "read_only": 1,
   "insert_after": "column_break_face",
-  "module": "Custom HR"
+  "module": "Absensi"
  }
 ]

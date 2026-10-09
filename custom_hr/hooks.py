@@ -1,7 +1,7 @@
 app_name = "custom_hr"
 app_title = "Absensi"
 app_publisher = "callmevan1120"
-app_description = "Custom HR extensions on top of Frappe HR: attendance gallery, face check-in, realtime attendance marking"
+app_description = "Absensi: attendance gallery, face check-in and realtime attendance on top of Frappe HR"
 app_email = "admin@example.com"
 app_license = "mit"
 required_apps = ["hrms"]
