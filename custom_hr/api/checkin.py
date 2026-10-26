@@ -8,6 +8,7 @@ from frappe import _
 from frappe.utils import cint, get_datetime, getdate, now_datetime
 
 from hrms.api import get_current_employee
+from hrms.hr.doctype.shift_assignment.shift_assignment import get_employee_shift
 
 from custom_hr.hrm.doctype.outlet import outlet as outlet_configuration
 from custom_hr.services.checkin_submission import (
@@ -55,10 +56,10 @@ def validate_checkin_location(latitude=None, longitude=None, log_type=None, expe
 
 
 @frappe.whitelist(methods=["POST"])
-def submit_checkin(log_type: str, latitude=None, longitude=None, request_id: str | None = None, expected_checkin: str | None = None):
+def submit_checkin(log_type: str, latitude=None, longitude=None, request_id: str | None = None, expected_checkin: str | None = None, shift: str | None = None):
 	doc, replayed = submit_self_checkin(
 		get_current_employee(), log_type,
-		latitude=latitude, longitude=longitude, request_id=request_id, expected_checkin=expected_checkin,
+		latitude=latitude, longitude=longitude, request_id=request_id, expected_checkin=expected_checkin, shift=shift,
 	)
 	return checkin_response(doc, replayed=replayed)
 
@@ -95,7 +96,7 @@ def get_checkin_context():
 	context = {
 		"employee": employee, "server_time": str(now), "outlet": record.outlet,
 		"mode": "Native", "next_action": "IN", "allowed": True, "reason": None,
-		"message": "", "candidate_shift": None, "shift_work_date": str(now.date()),
+		"message": "", "candidate_shift": None, "shift_choices": [], "shift_work_date": str(now.date()),
 		"checkout_deadline": None, "paired_checkin": None,
 		"incomplete_session": None,
 	}
@@ -161,9 +162,24 @@ def get_checkin_context():
 				use_session(latest)
 			return block("session_complete_or_expired", str(exc), "DONE")
 		if not resolution["mode_applies"]:
+			# Native employees: show the shift in force (or next up) from Shift Assignment / default shift
+			native_shift = get_employee_shift(employee, now, True, "forward")
+			if native_shift and not context["candidate_shift"]:
+				context["candidate_shift"] = native_shift.shift_type.name
 			return context
 		if not outlet_configuration.OUTLET_AUTO_SHIFT_READY:
 			return block("integration_not_ready", _("Mode shift otomatis belum dapat digunakan sampai integrasi attendance dan scheduler selesai."))
+		if resolution["code"] == "shift_choice_required":
+			# Not a refusal: the app shows a dropdown and sends the chosen shift with the check-in
+			context.update(shift_choices=[
+				{
+					"shift": candidate["shift"],
+					"start_time": get_datetime(candidate["shift_start"]).strftime("%H:%M:%S"),
+					"end_time": get_datetime(candidate["shift_end"]).strftime("%H:%M:%S"),
+				}
+				for candidate in resolution["candidates"]
+			], message=resolution["message"])
+			return context
 		if not resolution["matched"]:
 			return block(resolution["code"], resolution["message"])
 		return context

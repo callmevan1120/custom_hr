@@ -52,7 +52,7 @@ doctype_js = {
 doctype_list_js = {
 	"Attendance": "public/js/attendance_list.js",
 	"Employee Checkin": "public/js/employee_checkin_list.js",
-	"Holiday List": "public/js/holiday_list_list.js",
+	"Holiday List Assignment": "public/js/holiday_list_assignment_list.js",
 	"Outlet": "public/js/outlet.js",
 	"Overtime Request": "public/js/overtime_request.js",
 	"Shift Type": "public/js/shift_type_list.js",
@@ -88,6 +88,9 @@ override_whitelisted_methods = {
 }
 
 doc_events = {
+	"Attendance": {
+		"validate": "custom_hr.services.attendance_duration.fill_durations",
+	},
 	"Employee": {
 		"validate": "custom_hr.services.employee_outlet.fill_outlet",
 	},
@@ -161,6 +164,9 @@ fixtures = [
 					"Attendance-outlet_attendance_column",
 					"Attendance-missing_checkout",
 					"Attendance-working_hours_source",
+					"Attendance-working_duration",
+					"Attendance-late_entry_duration",
+					"Attendance-early_exit_duration",
 					"HR Settings-enable_face_checkin",
 					"HR Settings-require_face_checkin",
 					"HR Settings-face_match_threshold",
