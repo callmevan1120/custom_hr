@@ -1,6 +1,7 @@
 """Calendar scope, permissions, workflow and concurrency tests; no business writes."""
 
 import unittest
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import frappe
@@ -139,8 +140,7 @@ class TestLeaveCalendar(unittest.TestCase):
 
 	def test_month_counts_match_detail_without_loading_documents_or_workflow(self):
 		row = frappe._dict(from_date=self.doc.from_date, to_date=self.doc.to_date, status="Open", docstatus=0)
-		self.listing.side_effect = None
-		self.listing.return_value = [row]
+		self.listing.side_effect = lambda dt, **kwargs: [row] if dt == "Leave Application" else []
 		detail = api.get_leave_calendar("2026-11-01", "2026-11-30", kind="leave")["counts"]
 		self.factory.reset_mock()
 		self.workflow.reset_mock()
@@ -149,7 +149,7 @@ class TestLeaveCalendar(unittest.TestCase):
 		self.assertEqual(result["total"], 1)
 		self.factory.assert_not_called()
 		self.workflow.assert_not_called()
-		args = self.listing.call_args.kwargs
+		args = [call.kwargs for call in self.listing.call_args_list if call.args[0] == "Leave Application"][-1]  # the month count, not the detail
 		self.assertEqual(args["limit_page_length"], 0)
 		self.assertEqual(args["filters"]["company"], "Company")
 		self.assertEqual(args["filters"]["employee"], "EMP-1")
@@ -157,8 +157,7 @@ class TestLeaveCalendar(unittest.TestCase):
 
 	def test_month_counts_do_not_cap_or_fail_on_large_volume(self):
 		row = frappe._dict(from_date="2026-11-03", to_date="2026-11-03", status="Approved", docstatus=1)
-		self.listing.side_effect = None
-		self.listing.return_value = [row] * (api.MAX_REQUESTS + 100)
+		self.listing.side_effect = lambda dt, **kwargs: [row] * (api.MAX_REQUESTS + 100) if dt == "Leave Application" else []
 		result = api.get_leave_counts("2026-11-01", "2026-11-30")
 		self.assertEqual(result["total"], api.MAX_REQUESTS + 100)
 		self.assertEqual(result["counts"]["2026-11-03"]["approved_leave"], api.MAX_REQUESTS + 100)
@@ -199,7 +198,6 @@ class TestLeaveCalendar(unittest.TestCase):
 			api.decide_approval("Salary Slip", "SLIP", "Approve", "DATE")
 		self.factory.assert_not_called()
 
-	@patch.object(api, "ENABLED_KINDS", frozenset({"leave", "overtime"}))
 	def test_overtime_decision_is_bound_to_one_employee(self):
 		workflow = frappe._dict(workflow_state_field="status")
 		self.workflow.return_value = workflow
@@ -221,13 +219,11 @@ class TestLeaveCalendar(unittest.TestCase):
 		self.assertEqual(item["from_date"], "2026-10-22")
 		self.assertEqual(item["to_date"], "2026-10-22")
 
-	@patch.object(api, "ENABLED_KINDS", frozenset({"leave", "overtime"}))
 	def test_overtime_cannot_be_decided_without_employee_identity(self):
 		with self.assertRaisesRegex(frappe.ValidationError, "Choose the employee"):
 			api.decide_approval("Overtime Request", "OT-1", "Setujui", str(self.doc.modified))
 		self.doc.submit.assert_not_called()
 
-	@patch.object(api, "ENABLED_KINDS", frozenset({"leave", "overtime"}))
 	def test_grouped_overtime_becomes_individual_calendar_rows_and_employee_filter(self):
 		doc = leave(doctype="Overtime Request", date="2026-10-22", start_time="19:00:00", end_time="21:00:00", planned_hours=2, employees=[frappe._dict(employee="EMP-A", employee_name="A", approval_state="Menunggu HRD"), frappe._dict(employee="EMP-B", employee_name="B", approval_state="Menunggu HRD")])
 		self.factory.return_value = doc
@@ -244,21 +240,87 @@ class TestLeaveCalendar(unittest.TestCase):
 		self.doc.to_date = "2027-01-02"
 		self.assertEqual(api.get_leave_calendar("2026-10-01", "2026-10-31")["items"], [])
 
-	def test_default_calendar_never_queries_overtime_while_disabled(self):
+	def test_default_calendar_lists_leave_and_overtime(self):
 		api.get_leave_calendar("2026-10-01", "2026-10-31")
-		self.assertEqual([call.args[0] for call in self.listing.call_args_list], ["Leave Application"])
+		self.assertEqual([call.args[0] for call in self.listing.call_args_list], ["Leave Application", "Overtime Request"])
+		api.get_leave_calendar("2026-10-01", "2026-10-31", kind="overtime")
+		self.assertEqual(self.listing.call_args.args[0], "Overtime Request")
 
-	def test_explicit_overtime_filter_is_disabled_before_query(self):
-		with self.assertRaisesRegex(frappe.ValidationError, "temporarily disabled"):
-			api.get_leave_calendar("2026-10-01", "2026-10-31", kind="overtime")
-		self.listing.assert_not_called()
+	def test_overtime_stays_listed_after_a_decision_and_is_view_only_for_a_non_approver(self):
+		doc = leave(doctype="Overtime Request", date="2026-10-22", start_time="17:00:00", end_time="19:00:00", planned_hours=2, status="Menunggu SPV", employees=[frappe._dict(employee="EMP-A", employee_name="A"), frappe._dict(employee="EMP-B", employee_name="B", approval_state="Ditolak")])
+		self.factory.return_value = doc
+		self.listing.side_effect = lambda dt, **kwargs: [frappe._dict(name="OT")] if dt == "Overtime Request" else []
+		with patch(MODULE + "_actions", return_value=[]):
+			result = api.get_leave_calendar("2026-10-22", "2026-10-22", kind="overtime")
+		self.assertEqual([(i["employee"], i["status"], i["actions"]) for i in result["items"]], [("EMP-A", "Menunggu SPV", []), ("EMP-B", "Ditolak", [])])
 
-	def test_overtime_approve_and_reject_are_disabled_before_document_access(self):
-		for action in ["Setujui", "Tolak", "Approve", "Reject"]:
-			with self.assertRaisesRegex(frappe.ValidationError, "temporarily disabled"):
-				api.decide_approval("Overtime Request", "OT-1", action, "STAMP", employee="EMP-1")
-		self.factory.assert_not_called()
-		self.db_read.assert_not_called()
+	def test_overtime_status_names_the_leader_or_spv_like_leave(self):
+		approvers = {"approver_1": "leader@example.com", "approver_2": "spv@example.com"}
+		names = {"leader@example.com": "Budi", "spv@example.com": "Sari"}
+		for status, expected in [("Menunggu Leader", "Waiting for Budi"), ("Menunggu SPV", "Waiting for Sari"), ("Menunggu HRD", "Menunggu HRD")]:
+			doc = leave(doctype="Overtime Request", date="2026-10-22", start_time="17:00:00", end_time="19:00:00", planned_hours=2, status=status, **approvers, employees=[frappe._dict(employee="EMP-A", employee_name="A")])
+			with self.subTest(status=status), patch("frappe.db.get_value", side_effect=lambda doctype, name, field: names[name]):
+				self.assertEqual(api._request(doc, "overtime", [], None, doc.employees[0])["status"], expected)
+
+	def overtime(self, **changes):
+		values = dict(doctype="Overtime Request", name="OT-1", date="2026-10-22", start_time="17:00:00", end_time="21:00:00", planned_hours=4, status="Menunggu Leader", employees=[frappe._dict(employee="EMP-A", employee_name="A")])
+		values.update(changes)
+		doc = leave(**values)
+		doc.flags = frappe._dict()
+		self.factory.return_value = doc
+		return doc
+
+	def change_hours(self, doc, hours):
+		seen = {}
+		def save():  # the real save recomputes planned_hours in validate_times
+			seen.update(token=doc.flags.get("overtime_time_token"), end=doc.end_time)
+			doc.planned_hours = hours
+		doc.save.side_effect = save
+		with patch(MODULE + "_actions", return_value=[{"action": "Setujui", "kind": "approve", "next_state": "Menunggu SPV"}]), patch(MODULE + "get_fullname", return_value="Budi"):
+			api.update_overtime_hours(doc.name, hours, str(doc.modified))
+		return seen
+
+	def test_the_approver_changes_the_total_and_the_end_time_follows_from_the_start(self):
+		doc = self.overtime()
+		seen = self.change_hours(doc, 1.5)
+		self.assertEqual((doc.start_time, seen["end"]), ("17:00:00", "18:30:00"))
+		self.assertIs(seen["token"], api.TIME_EDIT_TOKEN)
+		self.assertNotIn("overtime_time_token", doc.flags)
+		self.assertIn("4 jam (17:00–21:00) → 1.5 jam (17:00–18:30)", doc.add_comment.call_args.args[1])
+		late = self.overtime(start_time="22:00:00", end_time="23:00:00", planned_hours=1)
+		self.assertEqual(self.change_hours(late, 3)["end"], "01:00:00")  # past midnight wraps
+		stored = self.overtime(start_time=timedelta(hours=17, minutes=9), end_time=timedelta(hours=19, minutes=9), planned_hours=2)
+		self.assertEqual((self.change_hours(stored, 1.5)["end"], stored.start_time), ("18:39:00", "17:09:00"))  # the database gives timedeltas
+
+	def test_only_the_current_approver_may_change_a_valid_total(self):
+		doc = self.overtime()
+		with patch(MODULE + "_actions", return_value=[]), self.assertRaises(frappe.PermissionError):
+			api.update_overtime_hours("OT-1", 2, str(doc.modified))
+		with self.assertRaisesRegex(frappe.ValidationError, "has changed"):
+			api.update_overtime_hours("OT-1", 2, "OLD")
+		for hours in (0, -1, 24, "abc"):
+			with self.subTest(hours=hours), self.assertRaises(frappe.ValidationError):
+				api.update_overtime_hours("OT-1", hours, str(doc.modified))
+		doc.save.assert_not_called()
+
+	def test_month_counts_include_each_overtime_employee_at_any_stage(self):
+		requests = [frappe._dict(name="OT-1", date="2026-10-22", status="Menunggu Leader"), frappe._dict(name="OT-2", date="2026-10-23", status="Menunggu HRD")]
+		members = [
+			frappe._dict(parent="OT-1", employee="EMP-A", approval_state=None),
+			frappe._dict(parent="OT-1", employee="EMP-B", approval_state="Disetujui"),
+			frappe._dict(parent="OT-2", employee="EMP-A", approval_state=None),
+		]
+		self.listing.side_effect = lambda dt, **kwargs: requests if dt == "Overtime Request" else []
+		with patch("frappe.get_all", return_value=members) as rows:
+			result = api.get_leave_counts("2026-10-01", "2026-10-31", company="Company")
+			filtered = api.get_leave_counts("2026-10-01", "2026-10-31", employee="EMP-B")
+		self.assertEqual((result["counts"]["2026-10-22"]["overtime"], result["counts"]["2026-10-23"]["overtime"], result["total"]), (2, 1, 3))  # EMP-B is approved
+		self.assertEqual(filtered["total"], 1)
+		self.assertNotIn("status", next(call.kwargs for call in self.listing.call_args_list if call.args[0] == "Overtime Request")["filters"])
+		listing = next(call.kwargs for call in self.listing.call_args_list if call.args[0] == "Overtime Request")
+		self.assertEqual(listing["filters"]["company"], "Company")
+		self.assertNotIn("ignore_permissions", listing)
+		self.assertEqual(rows.call_args.kwargs["filters"]["parent"], ["in", ["OT-1", "OT-2"]])
 
 	def test_leave_classification_requires_native_final_submission(self):
 		for status, docstatus, expected in [

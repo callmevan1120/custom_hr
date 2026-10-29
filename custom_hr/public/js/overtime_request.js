@@ -17,13 +17,15 @@ frappe.ui.form.on("Overtime Request", {
 		frm._allowed_outlets = await frappe
 			.xcall("custom_hr.api.roster.list_outlets")
 			.catch(() => []);
-		frm.set_query("outlet", () => {
+		// Outlets are named after their Company: a leader picks only the companies of their outlets, HR any company.
+		frm.set_query("company", () => {
+			if (frappe.user.has_role(["HR Manager", "HR User", "System Manager"])) return {};
 			return { filters: { name: ["in", frm._allowed_outlets] } };
 		});
 		frm.set_query("employee", "employees", () => {
 			const filters = { status: "Active" };
-			if (frm.doc.outlet) {
-				filters.outlet = frm.doc.outlet;
+			if (frm.doc.company) {
+				filters.company = frm.doc.company;
 			}
 			return { filters };
 		});
@@ -35,7 +37,7 @@ frappe.ui.form.on("Overtime Request", {
 	},
 	refresh(frm) {
 		if (!frm.is_new()) {
-			frm.set_intro(__("Approval lembur di Leave Calendar dinonaktifkan sementara. Fokus saat ini cuti/izin."), "blue");
+			frm.set_intro(__("Approve atau tolak lembur per karyawan di Working Calendar."), "blue");
 		}
 	},
 	start_time: update_planned_hours,

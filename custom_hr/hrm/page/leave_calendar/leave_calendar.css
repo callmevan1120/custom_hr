@@ -33,6 +33,7 @@
 .ac-approved_leave { background: #e1f2e9; color: #246448; }
 .ac-rejected { background: #fae9e8; color: #99423d; }
 .ac-cancelled { background: #edf0f4; color: #596575; }
+.ac-overtime { background: #e6edfa; color: #33539a; }
 .ac-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .ac-legend span { padding: 4px 9px; border-radius: 5px; font-size: 11px; }
 .ac-loading { grid-column: 1 / -1; min-height: 380px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted, #67758a); font-size: 13px; }
@@ -52,6 +53,8 @@
 .ac-balance { font-size: 11px; }
 .ac-over { color: var(--red-600, #c0392b); font-weight: 600; }
 .ac-stage { display: inline-block; padding: 4px 7px; border-radius: 5px; white-space: nowrap; font-size: 11px; }
+.ac-time { border: 0; padding: 0; background: none; color: inherit; font: inherit; border-bottom: 1px dashed currentColor; cursor: pointer; }
+.ac-time-wrap input { width: 56px; padding: 0 4px; border: 1px solid var(--border-color, #d1d8dd); border-radius: 4px; font: inherit; }
 .ac-request-actions { display: flex; gap: 5px; white-space: nowrap; font-size: 11px; }
 .ac-request-actions .btn { font-size: 11px; border-radius: 5px; }
 .ac-shell button:focus-visible, .ac-table button:focus-visible { outline: 2px solid var(--primary, #466fbf); outline-offset: 2px; }
@@ -59,6 +62,7 @@
 [data-theme="dark"] .ac-approved_leave { background: #203d30; color: #a3d9bc; }
 [data-theme="dark"] .ac-rejected { background: #422b2a; color: #e6aaa6; }
 [data-theme="dark"] .ac-cancelled { background: #303842; color: #b9c4d2; }
+[data-theme="dark"] .ac-overtime { background: #24314a; color: #a9c1ee; }
 [data-theme="dark"] .ac-day-button small { color: #a6bde8; }
 @media (max-width: 600px) {
  .ac-shell { padding: 12px; }

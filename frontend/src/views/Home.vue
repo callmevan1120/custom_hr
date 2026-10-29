@@ -22,11 +22,22 @@ import ShiftIcon from "@/components/icons/ShiftIcon.vue"
 import LeaveIcon from "@/components/icons/LeaveIcon.vue"
 import ExpenseIcon from "@/components/icons/ExpenseIcon.vue"
 import GroomingIcon from "@/components/icons/GroomingIcon.vue"
+import OvertimeIcon from "@/components/icons/OvertimeIcon.vue"
 import SalaryIcon from "@/components/icons/SalaryIcon.vue"
 
 const __ = inject("$translate")
 
 const quickLinks = [
+	{
+		icon: markRaw(GroomingIcon),
+		title: __("SOP Grooming"),
+		route: "GroomingView",
+	},
+	{
+		icon: markRaw(OvertimeIcon),
+		title: __("Request Overtime"),
+		route: "OvertimeView",
+	},
 	{
 		icon: markRaw(AttendanceIcon),
 		title: __("Request Attendance"),
@@ -46,11 +57,6 @@ const quickLinks = [
 		icon: markRaw(ExpenseIcon),
 		title: __("Claim an Expense"),
 		route: "ExpenseClaimFormView",
-	},
-	{
-		icon: markRaw(GroomingIcon),
-		title: __("Grooming"),
-		route: "GroomingView",
 	},
 	{
 		icon: markRaw(SalaryIcon),

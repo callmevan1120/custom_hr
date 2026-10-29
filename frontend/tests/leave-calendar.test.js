@@ -35,7 +35,7 @@ test("day dialog lists applicants and both available decision buttons", async ()
 	assert.equal(ui.dialog.approval_items.length, 1)
 })
 
-test("calendar renders six weeks and leave badges only, ignoring stale overtime counts", () => {
+test("calendar renders six weeks with leave and overtime badges", () => {
 	const ui = calendar()
 	ui.instance.month = dayjs("2026-10-01")
 	ui.instance.render(dayjs("2026-09-27"), { "2026-10-22": { leave: 3, leave_request: 2, approved_leave: 1, overtime: 3 } })
@@ -44,8 +44,8 @@ test("calendar renders six weeks and leave badges only, ignoring stale overtime 
 	assert.match(ui.html(), /ac-current/)
 	assert.match(ui.html(), /Leave Request \(2\)/)
 	assert.match(ui.html(), /Leave \(1\)/)
-	assert.ok(!ui.html().includes("Lembur"))
-	assert.ok(!ui.html().includes('data-kind="overtime"'))
+	assert.match(ui.html(), /Overtime \(3\)/)
+	assert.match(ui.html(), /data-date="2026-10-22" data-kind="overtime"/)
 	assert.match(ui.html(), /data-date="2026-10-22" data-kind="leave"/)
 })
 
@@ -94,7 +94,7 @@ test("empty day explicitly says no pending requests", async () => {
 	const ui = calendar()
 	ui.instance.request = async () => ({ items: [] })
 	await ui.instance.load_day(ui.dialog)
-	assert.match(ui.text(), /There are no leave requests/)
+	assert.match(ui.text(), /There are no requests/)
 })
 
 test("compact table uses one row per employee rather than large request cards", async () => {
@@ -141,7 +141,7 @@ test("rejected/stale decision refreshes both dialog and calendar and does not re
 	assert.equal(ui.alerts[0].indicator, "red")
 })
 
-test("requests always select leave even with stale overtime filters", async () => {
+test("requests pass the chosen kind through to the server", async () => {
 	const ui = calendar()
 	let args
 	ui.frappe.call = async value => {
@@ -150,20 +150,24 @@ test("requests always select leave even with stale overtime filters", async () =
 		return { message: { items: [] } }
 	}
 	await ui.instance.request("2026-10-01", "2026-10-31", { kind: "overtime" })
-	assert.equal(args.kind, "leave")
+	assert.equal(args.kind, "overtime")
+	await ui.instance.request("2026-10-01", "2026-10-31")
+	assert.equal(args.kind, undefined)
 })
 
-test("stale overtime rows cannot display actions or send approval posts", async () => {
+test("overtime rows show as Overtime and post the decision for that one employee", async () => {
 	const ui = calendar()
-	const overtime = { ...item(), kind: "overtime", doctype: "Overtime Request" }
+	const overtime = { ...item(), kind: "overtime", doctype: "Overtime Request", name: "LEMBUR-1", employee: "EMP-B", employees: [{ employee: "EMP-B", employee_name: "Crew B" }], actions: [{ action: "Setujui", kind: "approve", next_state: "Menunggu SPV" }] }
 	ui.instance.request = async () => ({ items: [overtime] })
+	ui.instance.load = async () => {}
 	await ui.instance.load_day(ui.dialog)
-	assert.equal(ui.dialog.approval_items.length, 0)
-	let posts = 0
-	ui.frappe.call = async () => { posts++ }
+	assert.equal(ui.dialog.approval_items.length, 1)
+	assert.match(ui.html(), /ac-kind ac-overtime">Overtime/)
+	const posts = []
+	ui.frappe.call = async value => { posts.push(value); return {} }
 	await ui.instance.decide(ui.dialog, overtime, overtime.actions[0])
-	assert.equal(posts, 0)
-	assert.match(ui.alerts[0].message, /temporarily disabled/)
+	const decision = posts.find(post => post.method === "custom_hr.api.leave_calendar.decide_approval")
+	assert.deepEqual({ ...decision.args }, { doctype: "Overtime Request", name: "LEMBUR-1", action: "Setujui", modified: "STAMP", employee: "EMP-B" })
 })
 
 test("other-stage and completed rows display read-only without decision buttons", async () => {
@@ -264,4 +268,89 @@ test("the month grid asks only for counts, never for the full request list", asy
 	assert.equal(calls[0].method, "custom_hr.api.leave_calendar.get_leave_counts")
 	assert.equal(calls[0].args.start_date, "2026-09-27")
 	assert.equal(calls[0].args.end_date, "2026-11-07")
+})
+
+const overtimeItem = (changes = {}) => ({ ...item(), kind: "overtime", doctype: "Overtime Request", name: "LEMBUR-1", details: "17:00:00 – 21:00:00 (4 hours)", start_time: "17:00:00", end_time: "21:00:00", planned_hours: 4, employee_count: 1, actions: [{ action: "Setujui", kind: "approve", next_state: "Menunggu SPV" }], ...changes })
+
+// A stand-in for the hours cell: dataset, innerHTML and the input the editor reads.
+function hoursCell(index, hours) {
+	const focused = []
+	return {
+		dataset: { index: String(index) }, innerHTML: "", focused,
+		closest() { return this },
+		querySelector(selector) {
+			return selector === ".ac-hours" ? { value: hours, focus: () => focused.push(selector) } : null
+		},
+	}
+}
+
+test("only the total hours are clickable, and only for the approver of the current stage", async () => {
+	const ui = calendar()
+	ui.instance.request = async () => ({ items: [overtimeItem(), overtimeItem({ name: "LEMBUR-2", actions: [] }), item()] })
+	await ui.instance.load_day(ui.dialog)
+	assert.equal((ui.html().match(/class="ac-time"/g) || []).length, 1)
+	assert.ok(ui.html().includes('17:00 – 21:00 (<span class="ac-time-wrap" data-index="0"><button type="button" class="ac-time"'))
+	assert.ok(ui.html().includes(">4</button></span> hours)"))
+	assert.ok(ui.html().includes("17:00:00 – 21:00:00 (4 hours)"))  // the view-only row keeps the plain text
+})
+
+test("a click turns the total hours into a number input", () => {
+	const ui = calendar()
+	ui.dialog.approval_items = [overtimeItem({ employee_count: 2 })]
+	const cell = hoursCell(0, "4")
+	ui.instance.open_time_editor(ui.dialog, cell)
+	assert.match(cell.innerHTML, /<input type="number" class="ac-hours" min="0.5" max="23.5" step="0.5" value="4"/)
+	assert.ok(!cell.innerHTML.includes('type="time"'))
+	assert.ok(!cell.innerHTML.includes("<button"))  // no save or cancel buttons: Enter, leaving the field, Esc
+	assert.ok(cell.innerHTML.includes("apply to all {0} employees"))  // the test __ leaves placeholders unfilled
+	assert.deepEqual([...cell.focused], [".ac-hours"])
+})
+
+test("saving posts the new total with the stamp and refreshes; view-only rows send nothing", async () => {
+	const ui = calendar()
+	ui.dialog.approval_items = [overtimeItem(), overtimeItem({ name: "LEMBUR-2", actions: [] })]
+	const posts = []
+	ui.frappe.call = async value => { posts.push(value); return {} }
+	let reloads = 0
+	ui.instance.load_day = async () => { reloads++ }
+	ui.instance.load = async () => { reloads++ }
+	await ui.instance.save_time(ui.dialog, hoursCell(0, "1.5"))
+	assert.equal(posts[0].method, "custom_hr.api.leave_calendar.update_overtime_hours")
+	assert.deepEqual({ ...posts[0].args }, { name: "LEMBUR-1", hours: 1.5, modified: "STAMP" })
+	assert.equal(reloads, 2)
+	await ui.instance.save_time(ui.dialog, hoursCell(1, "2"))
+	for (const empty of ["", "0", "-1", "abc", "4"]) await ui.instance.save_time(ui.dialog, hoursCell(0, empty))  // "4" is unchanged
+	assert.equal(posts.length, 1)
+})
+
+test("Enter then leaving the field saves once, and Esc saves nothing", async () => {
+	const ui = calendar()
+	ui.dialog.approval_items = [overtimeItem()]
+	const posts = []
+	ui.frappe.call = async value => { posts.push(value); return {} }
+	ui.instance.load_day = async () => {}
+	ui.instance.load = async () => {}
+	const cell = hoursCell(0, "2")
+	await ui.instance.save_time(ui.dialog, cell)  // Enter
+	await ui.instance.save_time(ui.dialog, cell)  // the blur that follows
+	assert.equal(posts.length, 1)
+	const cancelled = hoursCell(0, "3")
+	cancelled.dataset.done = "1"  // what Esc sets before the text is put back
+	await ui.instance.save_time(ui.dialog, cancelled)
+	assert.equal(posts.length, 1)
+})
+
+test("overtime stays in the day list after a decision, coloured by its status and view only", async () => {
+	const ui = calendar()
+	ui.instance.request = async () => ({ items: [
+		overtimeItem({ name: "LEMBUR-1", status: "Waiting for Budi" }),
+		overtimeItem({ name: "LEMBUR-2", status: "Disetujui", actions: [] }),
+		overtimeItem({ name: "LEMBUR-3", status: "Ditolak", actions: [] }),
+	] })
+	await ui.instance.load_day(ui.dialog)
+	assert.ok(ui.html().includes('<span class="ac-stage ac-leave_request">Waiting for Budi</span>'))
+	assert.ok(ui.html().includes('<span class="ac-stage ac-approved_leave">Disetujui</span>'))
+	assert.ok(ui.html().includes('<span class="ac-stage ac-rejected">Ditolak</span>'))
+	assert.equal((ui.html().match(/View only/g) || []).length, 2)
+	assert.equal((ui.html().match(/class="ac-time"/g) || []).length, 1)  // only the pending one has editable hours
 })
