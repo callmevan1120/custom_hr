@@ -106,6 +106,7 @@ import {
 	ensureLiveBackend,
 	loadFaceModels,
 	snapshotCanvas,
+	withTimeout,
 } from "@/utils/face"
 
 const props = defineProps({
@@ -203,7 +204,8 @@ async function startCamera(attempt = 1) {
 
 	try {
 		cameraStream = await navigator.mediaDevices.getUserMedia({
-			video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
+			// the detector shrinks frames to 160-320px anyway; bigger frames only cost memory
+			video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } },
 			audio: false,
 		})
 		videoEl.value.srcObject = cameraStream
@@ -241,17 +243,22 @@ function startDetectionLoop() {
 		clearInterval(detectionTimer)
 	}
 	let steadyTicks = 0
+	// a slow phone needs longer than one tick per detection: never stack them up
+	let detecting = false
 	detectionTimer = setInterval(async () => {
-		if (!videoEl.value || !cameraActive.value || capturing.value) return
+		if (detecting || !videoEl.value || !cameraActive.value || capturing.value) return
 		let detection = null
+		detecting = true
 		try {
 			await ensureLiveBackend()
-			detection = await detectSingleFace(videoEl.value, detectorOptions())
+			detection = await withTimeout(detectSingleFace(videoEl.value, detectorOptions()))
 			faceDetected.value = Boolean(detection)
 		} catch (error) {
 			faceDetected.value = false
 			steadyTicks = 0
 			return
+		} finally {
+			detecting = false
 		}
 		try {
 			drawBox(detection)
@@ -358,6 +365,7 @@ async function handleFileSelect(event) {
 	try {
 		const image = await loadImageFromFile(file)
 		const canvas = snapshotCanvas(image)
+		image.close?.()
 		const detection = await detectFace(canvas)
 		if (!detection) {
 			setStatus(__("Face not detected in the photo. Please try again."), "warn")
@@ -391,18 +399,27 @@ async function handleFileSelect(event) {
 	}
 }
 
-function loadImageFromFile(file) {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader()
-		reader.onload = () => {
+// A native camera photo can be 12 MP: decode it straight to the snapshot width, upright,
+// instead of holding a base64 copy plus the full-size image (runs low-RAM phones out of memory).
+async function loadImageFromFile(file) {
+	if (typeof createImageBitmap === "function") {
+		try {
+			return await createImageBitmap(file, { resizeWidth: 640, imageOrientation: "from-image" })
+		} catch (error) {
+			// older browsers reject these options: decode the plain way below
+		}
+	}
+	const url = URL.createObjectURL(file)
+	try {
+		return await new Promise((resolve, reject) => {
 			const image = new Image()
 			image.onload = () => resolve(image)
 			image.onerror = reject
-			image.src = reader.result
-		}
-		reader.onerror = reject
-		reader.readAsDataURL(file)
-	})
+			image.src = url
+		})
+	} finally {
+		URL.revokeObjectURL(url)
+	}
 }
 
 function retryCamera() {

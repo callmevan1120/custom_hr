@@ -46,12 +46,22 @@ export async function ensureLiveBackend() {
 	}
 }
 
+// generous for slow phones (first run compiles the GPU programs); only stops an endless spinner
+export const DETECTION_TIMEOUT_MS = 30000
+
+export function withTimeout(promise, ms = DETECTION_TIMEOUT_MS) {
+	let timer
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => reject(new Error("Face detection timed out")), ms)
+	})
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 export async function detectFace(input) {
 	await ensureLiveBackend()
-	return await faceapi
-		.detectSingleFace(input, captureDetectorOptions())
-		.withFaceLandmarks()
-		.withFaceDescriptor()
+	return await withTimeout(
+		faceapi.detectSingleFace(input, captureDetectorOptions()).withFaceLandmarks().withFaceDescriptor()
+	)
 }
 
 export function snapshotCanvas(input, width = 640) {

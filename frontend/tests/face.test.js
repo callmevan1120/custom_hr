@@ -31,7 +31,7 @@ function load(contextLost) {
 		},
 	}
 	const module = { exports: {} }
-	vm.runInNewContext(bundle.outputFiles[0].text, { module, exports: module.exports, globalThis: { __faceapi: faceapi } })
+	vm.runInNewContext(bundle.outputFiles[0].text, { module, exports: module.exports, setTimeout, clearTimeout, globalThis: { __faceapi: faceapi } })
 	return { face: module.exports, calls }
 }
 
@@ -45,4 +45,10 @@ test("detectFace keeps webgl while its context is alive", async () => {
 	const { face, calls } = load(false)
 	assert.equal(await face.detectFace({}), "face")
 	assert.deepEqual(calls, ["detect:webgl"])
+})
+
+test("withTimeout ends a detection that never answers, and passes a quick one through", async () => {
+	const { face } = load(false)
+	await assert.rejects(face.withTimeout(new Promise(() => {}), 20), /timed out/)
+	assert.equal(await face.withTimeout(Promise.resolve("face"), 20), "face")
 })
