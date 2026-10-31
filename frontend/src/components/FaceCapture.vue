@@ -100,11 +100,13 @@ import { Button } from "frappe-ui"
 import { detectSingleFace } from "@vladmandic/face-api"
 
 import {
-	descriptorToArray,
 	detectFace,
 	detectorOptions,
+	ensureLiveBackend,
+	faceImage,
 	loadFaceModels,
 	snapshotCanvas,
+	withTimeout,
 } from "@/utils/face"
 
 const props = defineProps({
@@ -159,7 +161,7 @@ const captureLabel = computed(() => {
 })
 
 // guided poses during enrollment: cover straight and both side profiles so the
-// averaged face descriptor is robust to head rotation
+// averaged face descriptor (computed on the server) is robust to head rotation
 const enrollPrompts = computed(() => [
 	__("Look straight at the camera"),
 	__("Slowly turn your head to the LEFT"),
@@ -197,14 +199,33 @@ function stopCamera() {
 	faceDetected.value = false
 }
 
+// each retry asks for less: some (older) phones refuse the size or the front-camera hint
+const CAMERA_ATTEMPTS = [
+	{ facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
+	{ facingMode: "user" },
+	true,
+]
+
+// the browser's real reason, in words the employee can act on
+const CAMERA_ERRORS = {
+	NotAllowedError: "Izin kamera ditolak. Izinkan akses kamera untuk situs ini di pengaturan browser, lalu coba lagi.",
+	SecurityError: "Kamera diblokir oleh browser karena alasan keamanan.",
+	NotReadableError: "Kamera sedang dipakai aplikasi lain atau bermasalah. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.",
+	NotFoundError: "Kamera tidak ditemukan di perangkat ini.",
+	OverconstrainedError: "Kamera tidak mendukung pengaturan yang diminta.",
+	AbortError: "Kamera berhenti sebelum sempat menyala.",
+}
+
+function cameraErrorText(error) {
+	const name = error?.name || "Error"
+	return `${__(CAMERA_ERRORS[name] || "Kamera tidak bisa dinyalakan.")} (${name}) ${__("Silakan ambil foto dengan kamera HP.")}`
+}
+
 async function startCamera(attempt = 1) {
 	if (cameraActive.value) return
 
 	try {
-		cameraStream = await navigator.mediaDevices.getUserMedia({
-			video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
-			audio: false,
-		})
+		cameraStream = await navigator.mediaDevices.getUserMedia({ video: CAMERA_ATTEMPTS[attempt - 1], audio: false })
 		videoEl.value.srcObject = cameraStream
 		await videoEl.value.play().catch(() => {})
 		cameraActive.value = true
@@ -218,11 +239,11 @@ async function startCamera(attempt = 1) {
 		if (permissionDenied || !navigator.mediaDevices?.getUserMedia) {
 			fallbackNeeded.value = true
 			cameraActive.value = false
-			setStatus(__("Camera permission denied. Please take a photo instead."), "warn")
+			setStatus(cameraErrorText(error), "error")
 			return
 		}
 
-		if (attempt < 3) {
+		if (attempt < CAMERA_ATTEMPTS.length) {
 			setStatus(__("Starting camera..."), "info")
 			await new Promise((resolve) => setTimeout(resolve, 800))
 			return startCamera(attempt + 1)
@@ -230,7 +251,7 @@ async function startCamera(attempt = 1) {
 
 		fallbackNeeded.value = true
 		cameraActive.value = false
-		setStatus(__("Camera is not available. Please take a photo instead."), "warn")
+		setStatus(cameraErrorText(error), "error")
 		if (fileInput.value) fileInput.value.value = ""
 	}
 }
@@ -240,16 +261,22 @@ function startDetectionLoop() {
 		clearInterval(detectionTimer)
 	}
 	let steadyTicks = 0
+	// a slow phone needs longer than one tick per detection: never stack them up
+	let detecting = false
 	detectionTimer = setInterval(async () => {
-		if (!videoEl.value || !cameraActive.value || capturing.value) return
+		if (detecting || !videoEl.value || !cameraActive.value || capturing.value) return
 		let detection = null
+		detecting = true
 		try {
-			detection = await detectSingleFace(videoEl.value, detectorOptions())
+			await ensureLiveBackend()
+			detection = await withTimeout(detectSingleFace(videoEl.value, detectorOptions()))
 			faceDetected.value = Boolean(detection)
 		} catch (error) {
 			faceDetected.value = false
 			steadyTicks = 0
 			return
+		} finally {
+			detecting = false
 		}
 		try {
 			drawBox(detection)
@@ -315,14 +342,14 @@ async function captureSample() {
 		}
 
 		const photo = canvas.toDataURL("image/jpeg", 0.8)
-		samples.value.push(descriptorToArray(detection.descriptor))
+		samples.value.push(await faceImage(canvas, detection))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
 
 		if (samples.value.length >= props.samplesRequired) {
 			stopCamera()
 			emit("captured", {
-				descriptors: samples.value,
+				faces: samples.value,
 				photo: samplesPhoto.value,
 			})
 		} else {
@@ -356,6 +383,7 @@ async function handleFileSelect(event) {
 	try {
 		const image = await loadImageFromFile(file)
 		const canvas = snapshotCanvas(image)
+		image.close?.()
 		const detection = await detectFace(canvas)
 		if (!detection) {
 			setStatus(__("Face not detected in the photo. Please try again."), "warn")
@@ -363,13 +391,13 @@ async function handleFileSelect(event) {
 		}
 
 		const photo = canvas.toDataURL("image/jpeg", 0.8)
-		samples.value.push(descriptorToArray(detection.descriptor))
+		samples.value.push(await faceImage(canvas, detection))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
 
 		if (samples.value.length >= props.samplesRequired) {
 			emit("captured", {
-				descriptors: samples.value,
+				faces: samples.value,
 				photo: samplesPhoto.value,
 			})
 		} else {
@@ -389,18 +417,27 @@ async function handleFileSelect(event) {
 	}
 }
 
-function loadImageFromFile(file) {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader()
-		reader.onload = () => {
+// A native camera photo can be 12 MP: decode it straight to the snapshot width, upright,
+// instead of holding a base64 copy plus the full-size image (runs low-RAM phones out of memory).
+async function loadImageFromFile(file) {
+	if (typeof createImageBitmap === "function") {
+		try {
+			return await createImageBitmap(file, { resizeWidth: 640, imageOrientation: "from-image" })
+		} catch (error) {
+			// older browsers reject these options: decode the plain way below
+		}
+	}
+	const url = URL.createObjectURL(file)
+	try {
+		return await new Promise((resolve, reject) => {
 			const image = new Image()
 			image.onload = () => resolve(image)
 			image.onerror = reject
-			image.src = reader.result
-		}
-		reader.onerror = reject
-		reader.readAsDataURL(file)
-	})
+			image.src = url
+		})
+	} finally {
+		URL.revokeObjectURL(url)
+	}
 }
 
 function retryCamera() {
@@ -432,7 +469,7 @@ onMounted(async () => {
 
 	if (!navigator.mediaDevices?.getUserMedia) {
 		fallbackNeeded.value = true
-		setStatus(__("Camera is not supported. Please take a photo instead."), "warn")
+		setStatus(__("Browser ini tidak mendukung kamera. Silakan ambil foto dengan kamera HP."), "error")
 		return
 	}
 

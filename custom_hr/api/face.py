@@ -13,9 +13,12 @@ from hrms.api import get_current_employee
 from custom_hr.hrm.doctype.employee_face_profile.employee_face_profile import FACE_DESCRIPTOR_LENGTH
 from hrms.hr.utils import validate_active_employee
 from custom_hr.services.checkin_submission import checkin_response, submit_self_checkin, verified_face
+from custom_hr.services.face_descriptor import descriptor_from_face_image
 
 HR_ROLES = ("HR Manager", "HR User", "System Manager")
 DEFAULT_MATCH_THRESHOLD = 0.5
+APP_UPDATE_MESSAGE = "The app needs an update. Close and reopen the app, then try again."
+MAX_ENROLL_FACES = 10
 
 
 def _get_optional_current_employee() -> str | None:
@@ -99,16 +102,26 @@ def get_face_status(employee: str | None = None) -> dict:
 
 @frappe.whitelist(methods=["POST"])
 def enroll_face(
-	descriptors: str | list, photo: str | None = None, employee: str | None = None
+	faces: str | list | None = None,
+	photo: str | None = None,
+	employee: str | None = None,
+	descriptors: str | list | None = None,
 ) -> dict:
+	if descriptors is not None:  # an app from before server-side descriptors
+		frappe.throw(_(APP_UPDATE_MESSAGE))
 	employee = _resolve_employee(employee)
 	validate_active_employee(employee)
 
-	samples = json.loads(descriptors) if isinstance(descriptors, str) else descriptors
-	if not samples:
+	try:
+		images = json.loads(faces) if isinstance(faces, str) else faces
+	except ValueError:
+		images = None
+	if not images or not isinstance(images, list):
 		frappe.throw(_("At least one face sample is required for enrollment."))
+	if len(images) > MAX_ENROLL_FACES:  # each sample costs server CPU: bound it before any work
+		frappe.throw(_("Too many face samples (at most {0}).").format(MAX_ENROLL_FACES))
 
-	samples = [_validate_descriptor(sample) for sample in samples]
+	samples = [descriptor_from_face_image(image) for image in images]
 	average_descriptor = [sum(values) / len(values) for values in zip(*samples)]
 
 	profile_name = frappe.db.get_value("Employee Face Profile", {"employee": employee})
@@ -153,21 +166,24 @@ def reset_face(employee: str) -> dict:
 @frappe.whitelist(methods=["POST"])
 def face_checkin(
 	log_type: str,
-	descriptor: str | list,
+	face: str | None = None,
 	latitude: float | str | None = None,
 	longitude: float | str | None = None,
 	photo: str | None = None,
 	request_id: str | None = None,
 	expected_checkin: str | None = None,
 	shift: str | None = None,
+	descriptor: str | list | None = None,
 ) -> dict:
+	if descriptor is not None:  # an app from before server-side descriptors
+		frappe.throw(_(APP_UPDATE_MESSAGE))
 	employee = get_current_employee()
 	log_type = (log_type or "").upper()
 	if log_type not in ("IN", "OUT"):
 		frappe.throw(_("Log Type must be either IN or OUT."))
 
 	validate_active_employee(employee)
-	descriptor = _validate_descriptor(descriptor)
+	descriptor = descriptor_from_face_image(face)
 
 	profile = frappe.db.get_value(
 		"Employee Face Profile",

@@ -20,9 +20,13 @@ class LeaveCalendar {
 			</div>
 		`);
 		this.filters = {};
+		this.outlets = [];
+		frappe.xcall("custom_hr.api.roster.list_outlets").then((outlets) => (this.outlets = outlets)).catch(() => {});
+		// Outlets are named after their Company: a leader picks only the companies of their outlets, HR any company.
+		const company_query = () => (frappe.user.has_role(["HR Manager", "HR User", "System Manager"]) ? {} : { filters: { name: ["in", this.outlets] } });
 		for (const df of [
 			{ fieldname: "employee", fieldtype: "Link", options: "Employee", label: __("Employee") },
-			{ fieldname: "company", fieldtype: "Link", options: "Company", label: __("Company") },
+			{ fieldname: "company", fieldtype: "Link", options: "Company", label: __("Company"), get_query: company_query },
 		]) {
 			this.filters[df.fieldname] = frappe.ui.form.make_control({ parent: this.page.main.find(".ac-filters"), df: { ...df, change: () => this.load() }, render_input: true });
 		}
