@@ -3,6 +3,7 @@
 
 """T07 API/context/proof/retry tests; no persistent business writes."""
 
+import json
 import unittest
 from copy import deepcopy
 from datetime import datetime
@@ -406,8 +407,8 @@ class TestFaceProofAndLifecycle(CheckinTestCase):
 			self.assertEqual(proof_doc.face_verified, 1)
 			self.assertEqual(kwargs["request_id"], REQUEST_ID)
 			return stored, True
-		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "_validate_descriptor", return_value=[0.0]), patch("frappe.db.get_value", return_value=frappe._dict(name="PROFILE", descriptor="[0.0]")), patch("frappe.db.get_single_value", return_value=0.5), patch.object(face, "submit_self_checkin", side_effect=shared), patch.object(face, "_save_photo_data_url") as photo, patch("frappe.db.commit") as commit:
-			result = face.face_checkin("IN", [0.0], photo="photo", request_id=REQUEST_ID)
+		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image", return_value=[0.0]), patch.object(face, "_validate_descriptor", return_value=[0.0]), patch("frappe.db.get_value", return_value=frappe._dict(name="PROFILE", descriptor="[0.0]")), patch("frappe.db.get_single_value", return_value=0.5), patch.object(face, "submit_self_checkin", side_effect=shared), patch.object(face, "_save_photo_data_url") as photo, patch("frappe.db.commit") as commit:
+			result = face.face_checkin("IN", face="face-image", photo="photo", request_id=REQUEST_ID)
 		self.assertEqual(result["shift"], "Stored Shift")
 		self.assertTrue(result["replayed"])
 		photo.assert_not_called()
@@ -415,9 +416,53 @@ class TestFaceProofAndLifecycle(CheckinTestCase):
 
 	def test_face_endpoint_passes_the_choice_to_the_shared_writer(self):
 		stored = frappe._dict(name="SAVED", employee="EMP-TEST", shift="Shift B", log_type="IN", face_score=0)
-		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "_validate_descriptor", return_value=[0.0]), patch("frappe.db.get_value", return_value=frappe._dict(name="PROFILE", descriptor="[0.0]")), patch("frappe.db.get_single_value", return_value=0.5), patch.object(face, "submit_self_checkin", return_value=(stored, True)) as writer, patch.object(face, "_save_photo_data_url"), patch("frappe.db.commit"):
-			face.face_checkin("IN", [0.0], photo="photo", request_id=REQUEST_ID, shift="Shift B")
+		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image", return_value=[0.0]), patch.object(face, "_validate_descriptor", return_value=[0.0]), patch("frappe.db.get_value", return_value=frappe._dict(name="PROFILE", descriptor="[0.0]")), patch("frappe.db.get_single_value", return_value=0.5), patch.object(face, "submit_self_checkin", return_value=(stored, True)) as writer, patch.object(face, "_save_photo_data_url"), patch("frappe.db.commit"):
+			face.face_checkin("IN", face="face-image", photo="photo", request_id=REQUEST_ID, shift="Shift B")
 		self.assertEqual(writer.call_args.kwargs["shift"], "Shift B")
+
+	def test_face_checkin_computes_the_descriptor_from_the_face_image(self):
+		stored = frappe._dict(name="SAVED", employee="EMP-TEST", shift="S", log_type="IN", face_score=0)
+		vector = [0.1] * 128
+		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image", return_value=vector) as compute, patch("frappe.db.get_value", return_value=frappe._dict(name="PROFILE", descriptor=json.dumps(vector))), patch("frappe.db.get_single_value", return_value=0.5), patch.object(face, "submit_self_checkin", return_value=(stored, False)) as writer, patch.object(face, "_save_photo_data_url", return_value=None), patch("frappe.db.commit"):
+			face.face_checkin("IN", face="face-image", request_id=REQUEST_ID)
+		compute.assert_called_once_with("face-image")
+		writer.assert_called_once()
+
+	def test_face_checkin_refuses_a_client_descriptor(self):
+		with patch.object(face, "get_current_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "submit_self_checkin") as writer:
+			with self.assertRaises(frappe.ValidationError) as raised:
+				face.face_checkin("IN", descriptor=json.dumps([0.0] * 128), request_id=REQUEST_ID)
+		self.assertIn(face.APP_UPDATE_MESSAGE, str(raised.exception))
+		writer.assert_not_called()
+
+	def test_enroll_face_averages_server_descriptors(self):
+		doc = MagicMock()
+		with patch.object(face, "_resolve_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image", side_effect=[[0.0] * 128, [2.0] * 128]), patch("frappe.db.get_value", return_value=None), patch("frappe.new_doc", return_value=doc), patch("frappe.db.commit"):
+			result = face.enroll_face(faces=json.dumps(["face-1", "face-2"]))
+		self.assertEqual(json.loads(doc.descriptor), [1.0] * 128)
+		self.assertEqual(result["samples"], 2)
+
+	def test_enroll_face_saves_nothing_when_one_image_is_invalid(self):
+		with patch.object(face, "_resolve_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image", side_effect=[[0.0] * 128, frappe.ValidationError("Invalid face image.")]), patch("frappe.new_doc") as new_doc:
+			with self.assertRaises(frappe.ValidationError):
+				face.enroll_face(faces=json.dumps(["face-1", "broken"]))
+		new_doc.assert_not_called()
+
+	def test_enroll_face_refuses_too_many_or_malformed_samples_before_any_work(self):
+		too_many = json.dumps(["face"] * (face.MAX_ENROLL_FACES + 1))
+		with patch.object(face, "_resolve_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch.object(face, "descriptor_from_face_image") as compute, patch("frappe.new_doc") as new_doc:
+			for faces in (too_many, json.dumps({"a": "face"}), "not json"):
+				with self.assertRaises(frappe.ValidationError, msg=faces[:30]):
+					face.enroll_face(faces=faces)
+		compute.assert_not_called()
+		new_doc.assert_not_called()
+
+	def test_enroll_face_refuses_client_descriptors(self):
+		with patch.object(face, "_resolve_employee", return_value="EMP-TEST"), patch.object(face, "validate_active_employee"), patch("frappe.new_doc") as new_doc:
+			with self.assertRaises(frappe.ValidationError) as raised:
+				face.enroll_face(descriptors=json.dumps([[0.0] * 128]))
+		self.assertIn(face.APP_UPDATE_MESSAGE, str(raised.exception))
+		new_doc.assert_not_called()
 
 	def test_context_query_helpers_can_run_without_for_update(self):
 		with patch("frappe.db.sql", return_value=[]) as sql:
