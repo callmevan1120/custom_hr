@@ -37,7 +37,17 @@ export const detectorOptions = () =>
 export const captureDetectorOptions = () =>
 	new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
 
+// Android drops the page's GPU context while a native camera app holds the screen;
+// webgl then never answers (detection hangs), so carry on with the cpu backend.
+export async function ensureLiveBackend() {
+	if (faceapi.tf.getBackend() === "webgl" && faceapi.tf.backend().gpgpu?.gl?.isContextLost?.()) {
+		await faceapi.tf.setBackend("cpu")
+		await faceapi.tf.ready()
+	}
+}
+
 export async function detectFace(input) {
+	await ensureLiveBackend()
 	return await faceapi
 		.detectSingleFace(input, captureDetectorOptions())
 		.withFaceLandmarks()

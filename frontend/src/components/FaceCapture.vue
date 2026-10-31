@@ -103,6 +103,7 @@ import {
 	descriptorToArray,
 	detectFace,
 	detectorOptions,
+	ensureLiveBackend,
 	loadFaceModels,
 	snapshotCanvas,
 } from "@/utils/face"
@@ -244,6 +245,7 @@ function startDetectionLoop() {
 		if (!videoEl.value || !cameraActive.value || capturing.value) return
 		let detection = null
 		try {
+			await ensureLiveBackend()
 			detection = await detectSingleFace(videoEl.value, detectorOptions())
 			faceDetected.value = Boolean(detection)
 		} catch (error) {
