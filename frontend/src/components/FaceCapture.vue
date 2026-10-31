@@ -100,10 +100,10 @@ import { Button } from "frappe-ui"
 import { detectSingleFace } from "@vladmandic/face-api"
 
 import {
-	descriptorToArray,
 	detectFace,
 	detectorOptions,
 	ensureLiveBackend,
+	faceImage,
 	loadFaceModels,
 	snapshotCanvas,
 	withTimeout,
@@ -161,7 +161,7 @@ const captureLabel = computed(() => {
 })
 
 // guided poses during enrollment: cover straight and both side profiles so the
-// averaged face descriptor is robust to head rotation
+// averaged face descriptor (computed on the server) is robust to head rotation
 const enrollPrompts = computed(() => [
 	__("Look straight at the camera"),
 	__("Slowly turn your head to the LEFT"),
@@ -199,15 +199,33 @@ function stopCamera() {
 	faceDetected.value = false
 }
 
+// each retry asks for less: some (older) phones refuse the size or the front-camera hint
+const CAMERA_ATTEMPTS = [
+	{ facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } },
+	{ facingMode: "user" },
+	true,
+]
+
+// the browser's real reason, in words the employee can act on
+const CAMERA_ERRORS = {
+	NotAllowedError: "Izin kamera ditolak. Izinkan akses kamera untuk situs ini di pengaturan browser, lalu coba lagi.",
+	SecurityError: "Kamera diblokir oleh browser karena alasan keamanan.",
+	NotReadableError: "Kamera sedang dipakai aplikasi lain atau bermasalah. Tutup aplikasi lain yang memakai kamera, lalu coba lagi.",
+	NotFoundError: "Kamera tidak ditemukan di perangkat ini.",
+	OverconstrainedError: "Kamera tidak mendukung pengaturan yang diminta.",
+	AbortError: "Kamera berhenti sebelum sempat menyala.",
+}
+
+function cameraErrorText(error) {
+	const name = error?.name || "Error"
+	return `${__(CAMERA_ERRORS[name] || "Kamera tidak bisa dinyalakan.")} (${name}) ${__("Silakan ambil foto dengan kamera HP.")}`
+}
+
 async function startCamera(attempt = 1) {
 	if (cameraActive.value) return
 
 	try {
-		cameraStream = await navigator.mediaDevices.getUserMedia({
-			// the detector shrinks frames to 160-320px anyway; bigger frames only cost memory
-			video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } },
-			audio: false,
-		})
+		cameraStream = await navigator.mediaDevices.getUserMedia({ video: CAMERA_ATTEMPTS[attempt - 1], audio: false })
 		videoEl.value.srcObject = cameraStream
 		await videoEl.value.play().catch(() => {})
 		cameraActive.value = true
@@ -221,11 +239,11 @@ async function startCamera(attempt = 1) {
 		if (permissionDenied || !navigator.mediaDevices?.getUserMedia) {
 			fallbackNeeded.value = true
 			cameraActive.value = false
-			setStatus(__("Camera permission denied. Please take a photo instead."), "warn")
+			setStatus(cameraErrorText(error), "error")
 			return
 		}
 
-		if (attempt < 3) {
+		if (attempt < CAMERA_ATTEMPTS.length) {
 			setStatus(__("Starting camera..."), "info")
 			await new Promise((resolve) => setTimeout(resolve, 800))
 			return startCamera(attempt + 1)
@@ -233,7 +251,7 @@ async function startCamera(attempt = 1) {
 
 		fallbackNeeded.value = true
 		cameraActive.value = false
-		setStatus(__("Camera is not available. Please take a photo instead."), "warn")
+		setStatus(cameraErrorText(error), "error")
 		if (fileInput.value) fileInput.value.value = ""
 	}
 }
@@ -324,14 +342,14 @@ async function captureSample() {
 		}
 
 		const photo = canvas.toDataURL("image/jpeg", 0.8)
-		samples.value.push(descriptorToArray(detection.descriptor))
+		samples.value.push(await faceImage(canvas, detection))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
 
 		if (samples.value.length >= props.samplesRequired) {
 			stopCamera()
 			emit("captured", {
-				descriptors: samples.value,
+				faces: samples.value,
 				photo: samplesPhoto.value,
 			})
 		} else {
@@ -373,13 +391,13 @@ async function handleFileSelect(event) {
 		}
 
 		const photo = canvas.toDataURL("image/jpeg", 0.8)
-		samples.value.push(descriptorToArray(detection.descriptor))
+		samples.value.push(await faceImage(canvas, detection))
 		samplesPhoto.value = samplesPhoto.value || photo
 		lastSamplePhoto.value = photo
 
 		if (samples.value.length >= props.samplesRequired) {
 			emit("captured", {
-				descriptors: samples.value,
+				faces: samples.value,
 				photo: samplesPhoto.value,
 			})
 		} else {
@@ -451,7 +469,7 @@ onMounted(async () => {
 
 	if (!navigator.mediaDevices?.getUserMedia) {
 		fallbackNeeded.value = true
-		setStatus(__("Camera is not supported. Please take a photo instead."), "warn")
+		setStatus(__("Browser ini tidak mendukung kamera. Silakan ambil foto dengan kamera HP."), "error")
 		return
 	}
 

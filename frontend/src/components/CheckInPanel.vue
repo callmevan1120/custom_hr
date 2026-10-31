@@ -94,7 +94,7 @@ const locationValid = ref(false)
 const locationChecking = ref(false)
 const faceStep = ref("capture")
 const faceStatusChecked = ref(false)
-const capturedDescriptor = ref(null)
+const capturedFace = ref(null)
 const capturedPhoto = ref(null)
 const verifyError = ref("")
 const submitError = ref("")
@@ -132,7 +132,7 @@ const gpsAvailable = computed(() => hasCoordinates(latitude.value, longitude.val
 const mapUrl = computed(() => `https://maps.google.com/maps?q=${latitude.value},${longitude.value}&hl=en&z=15&output=embed`)
 const sameEmployee = computed(() => employee.data?.name === employeeName)
 const canOpen = computed(() => sameEmployee.value && online.value && !syncing.value && !opening.value && !submission.busy && choiceMade.value && (submission.pending?.uncertain || (context.value?.allowed && ["IN", "OUT"].includes(context.value.next_action))))
-const canSubmit = computed(() => settings.data?.allow_employee_checkin_from_mobile_app && sameEmployee.value && online.value && !syncing.value && !!submission.pending && choiceMade.value && (submission.pending.uncertain || (context.value?.allowed && context.value.next_action === submission.pending.log_type)) && (!settings.data?.allow_geolocation_tracking || (gpsAvailable.value && locationValid.value && !locationChecking.value)) && (!useFace.value || !!capturedDescriptor.value))
+const canSubmit = computed(() => settings.data?.allow_employee_checkin_from_mobile_app && sameEmployee.value && online.value && !syncing.value && !!submission.pending && choiceMade.value && (submission.pending.uncertain || (context.value?.allowed && context.value.next_action === submission.pending.log_type)) && (!settings.data?.allow_geolocation_tracking || (gpsAvailable.value && locationValid.value && !locationChecking.value)) && (!useFace.value || !!capturedFace.value))
 
 const showRetry = computed(() => !submission.busy && !!(verifyError.value || submitError.value) && canSubmit.value)
 
@@ -245,22 +245,22 @@ function retakeFace() {
 	if (submission.busy) return
 	attempted = false
 	faceStep.value = "capture"
-	capturedDescriptor.value = capturedPhoto.value = null
+	capturedFace.value = capturedPhoto.value = null
 	verifyError.value = ""
 }
 
-function handleFaceCaptured({ descriptors, photo }) {
+function handleFaceCaptured({ faces, photo }) {
 	if (!modalOpen.value || !sameEmployee.value || submission.busy) return
-	capturedDescriptor.value = descriptors?.[0] || null
+	capturedFace.value = faces?.[0] || null
 	capturedPhoto.value = photo
 	faceStep.value = "confirm"
 	verifyError.value = ""
 }
 
-async function handleEnrolled({ descriptors, photo }) {
+async function handleEnrolled({ faces, photo }) {
 	if (enrollFace.loading || submission.busy || !modalOpen.value || !sameEmployee.value) return
 	try {
-		await enrollFace.submit({ employee: employeeName, descriptors: JSON.stringify(descriptors), photo })
+		await enrollFace.submit({ employee: employeeName, faces: JSON.stringify(faces), photo })
 		if (modalOpen.value && !disposed) retakeFace()
 	} catch (error) { verifyError.value = message(error) }
 	finally { enrollFace.reset() }
@@ -278,7 +278,7 @@ async function submitAttempt() {
 		const payload = { latitude: latitude.value, longitude: longitude.value }
 		if (choices.value.length) payload.shift = chosenShift.value
 		if (useFace.value) {
-			payload.descriptor = JSON.stringify(capturedDescriptor.value)
+			payload.face = capturedFace.value
 			payload.photo = capturedPhoto.value
 		}
 		const result = await submission.submit((params) => (useFace.value ? faceCheckin : standardCheckin).submit(params), payload)
@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
 	window.removeEventListener("focus", onVisible)
 	document.removeEventListener("visibilitychange", onVisible)
 	window.clearInterval(refreshTimer)
-	capturedDescriptor.value = capturedPhoto.value = null
+	capturedFace.value = capturedPhoto.value = null
 	submission.cancelUnsent()
 })
 </script>

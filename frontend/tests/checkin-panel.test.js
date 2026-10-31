@@ -35,7 +35,7 @@ function mount(options = {}) {
 		calls.push({ url, params })
 		if (url.endsWith("get_checkin_context")) { if (failContext) throw new Error("context offline"); return current }
 		if (url.endsWith("get_checkin_request_result")) return lookupResult
-		if (url.endsWith("get_face_status")) return { enrolled: true }
+		if (url.endsWith("get_face_status")) return options.faceStatus || { enrolled: true }
 		if (url.endsWith("validate_checkin_location")) return options.locationCheck ? options.locationCheck(params) : { valid: true }
 		return post(params)
 	}
@@ -49,7 +49,7 @@ function mount(options = {}) {
 	}
 	const Button = defineComponent({ inheritAttrs: false, props: ["disabled", "loading"], setup(p, { slots, attrs }) { return () => h("button", { ...attrs, disabled: p.disabled, loading: p.loading }, slots.default?.()) } })
 	const Modal = defineComponent({ props: ["isOpen", "canDismiss"], setup(p, { slots }) { return () => p.isOpen ? h("modal", {}, slots.default?.()) : null } })
-	const Face = defineComponent({ setup(_, { emit }) { return () => h("face", { onClick: () => emit("captured", { descriptors: [[0]], photo: "temporary-photo" }) }) } })
+	const Face = defineComponent({ setup(_, { emit }) { return () => h("face", { onClick: () => emit("captured", { faces: ["face-image"], photo: "temporary-photo" }) }) } })
 	const storage = { getItem: (k) => data.get(k) || null, setItem: (k, v) => data.set(k, v), removeItem: (k) => data.delete(k) }
 	const window = { sessionStorage: storage, crypto: { randomUUID: () => ID }, setInterval() { return 1 }, clearInterval() {}, addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: (name) => listeners.delete(name) }
 	window.Capacitor = options.capacitor
@@ -329,8 +329,19 @@ test("face capture submits to the shared face endpoint as soon as a face is capt
 		assert.equal(ui.calls.filter((c) => c.url.endsWith("face_checkin")).length, 0)
 		ui.nodes("face")[0].props.onClick(); await flush()
 		assert.equal(ui.calls.filter((c) => c.url.endsWith("face_checkin")).length, 1)
-		const post = ui.calls.find((c) => c.url.endsWith("face_checkin")); assert.ok(post); assert.equal(post.params.request_id, ID); assert.equal(post.params.descriptor, "[0]")
+		const post = ui.calls.find((c) => c.url.endsWith("face_checkin")); assert.ok(post); assert.equal(post.params.request_id, ID); assert.equal(post.params.face, "face-image")
+		assert.ok(!("descriptor" in post.params))
 		assert.equal(ui.gpsCalls, 0)
+	} finally { ui.unmount() }
+})
+
+test("face enrollment posts the face images for the server to turn into descriptors", async () => {
+	const ui = mount({ settings: { require_face_checkin: 1 }, faceStatus: { enrolled: false } }); try {
+		await flush(); await ui.click("Check In"); await flush()
+		ui.nodes("face")[0].props.onClick(); await flush()
+		const post = ui.calls.find((c) => c.url.endsWith("enroll_face")); assert.ok(post)
+		assert.equal(post.params.faces, JSON.stringify(["face-image"]))
+		assert.ok(!("descriptors" in post.params))
 	} finally { ui.unmount() }
 })
 

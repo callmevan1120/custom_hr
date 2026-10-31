@@ -76,7 +76,7 @@ async function setup_face_models(faceapi) {
 	await Promise.all([
 		faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODELS_URL),
 		faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODELS_URL),
-		faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODELS_URL),
+		// no faceRecognitionNet: the server computes the descriptor from the face image
 	]);
 }
 
@@ -117,7 +117,7 @@ function open_face_enrollment_dialog(frm) {
 						type: "POST",
 						args: {
 							employee: frm.doc.name,
-							descriptors: JSON.stringify(captured_samples),
+							faces: JSON.stringify(captured_samples),
 							photo: captured_photo,
 						},
 					});
@@ -172,15 +172,18 @@ function open_face_enrollment_dialog(frm) {
 			const faceapi = window.faceapi;
 			const detection = await faceapi
 				.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-				.withFaceLandmarks()
-				.withFaceDescriptor();
+				.withFaceLandmarks();
 
 			if (!detection) {
 				setStatus(__("Face not detected, try again"), "orange");
 				return;
 			}
 
-			captured_samples.push(Array.from(detection.descriptor));
+			// the face exactly as withFaceDescriptor() fed the recognition net: dlib alignment box,
+			// squared to 150px (custom_hr.services.face_descriptor computes the descriptor)
+			const box = detection.landmarks.align(null, { useDlibAlignment: true });
+			const [face] = await faceapi.extractFaces(video, [box]);
+			captured_samples.push(faceapi.imageToSquare(face, 150, true).toDataURL("image/png"));
 			canvas.width = 480;
 			canvas.height = (video.videoHeight / video.videoWidth) * 480;
 			canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
