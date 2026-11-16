@@ -9,8 +9,16 @@
   "column_break_wage",
   "overtime_salary_component",
   "overtime_hourly_divisor",
+  "daily_rate_section",
+  "daily_rates",
+  "bpjs_section",
+  "bpjs_rates",
   "attendance_penalty_section",
   "attendance_penalty_rates",
+  "shift_allowance_section",
+  "shift_allowances",
+  "match_section",
+  "match_columns",
   "je_section",
   "outlet_expense_account_number",
   "intercompany_receivable_account_number",
@@ -49,6 +57,31 @@
    "reqd": 1
   },
   {
+   "description": "Pakai di struktur gaji dengan rumus tarif_uang_makan dan tarif_transport, mis. tarif_uang_makan * jumlah_hadir. Berlaku untuk slip draft berikutnya.",
+   "fieldname": "daily_rate_section",
+   "fieldtype": "Section Break",
+   "label": "Tarif Harian"
+  },
+  {
+   "description": "Dipilih baris paling cocok: company + department (atau induk department-nya), lalu company, lalu baris kosong untuk semua company.",
+   "fieldname": "daily_rates",
+   "fieldtype": "Table",
+   "label": "Tarif Uang Makan & Transport",
+   "options": "HRM Daily Rate"
+  },
+  {
+   "description": "Dasar BPJS = Variable di SSA kalau diisi, kalau kosong gaji pokok + Hari Dasar BPJS × (uang makan + transport). Karyawan dengan centang Tidak Ikut BPJS dasarnya 0. Pakai di rumus dengan Nama di Rumus, mis. iuran_bpjs_kesehatan.",
+   "fieldname": "bpjs_section",
+   "fieldtype": "Section Break",
+   "label": "Iuran BPJS"
+  },
+  {
+   "fieldname": "bpjs_rates",
+   "fieldtype": "Table",
+   "label": "Persen Iuran BPJS",
+   "options": "HRM BPJS Rate"
+  },
+  {
    "description": "Berlaku untuk slip draft berikutnya, pada Salary Structure yang memakai formulanya.",
    "fieldname": "attendance_penalty_section",
    "fieldtype": "Section Break",
@@ -60,6 +93,30 @@
    "fieldtype": "Table",
    "label": "Tarif Potongan",
    "options": "HRM Attendance Penalty Rate"
+  },
+  {
+   "description": "Hanya shift yang ada di tabel ini yang dapat tunjangan, per hari hadir. Pakai di struktur gaji dengan rumus tunjangan_shift.",
+   "fieldname": "shift_allowance_section",
+   "fieldtype": "Section Break",
+   "label": "Tunjangan Shift"
+  },
+  {
+   "fieldname": "shift_allowances",
+   "fieldtype": "Table",
+   "label": "Tunjangan Shift",
+   "options": "HRM Shift Allowance"
+  },
+  {
+   "description": "Dipakai tombol Cocokkan dengan Excel di Payroll Entry. Sheet dibaca dari baris di bawah judul NIP sampai NIP kosong pertama.",
+   "fieldname": "match_section",
+   "fieldtype": "Section Break",
+   "label": "Cocokkan Gaji dengan Excel"
+  },
+  {
+   "fieldname": "match_columns",
+   "fieldtype": "Table",
+   "label": "Kolom Cocokkan Gaji",
+   "options": "HRM Payroll Match Column"
   },
   {
    "collapsible": 1,
@@ -89,7 +146,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-11-09 12:00:00.000000",
+ "modified": "2026-11-16 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRM",
  "name": "HRM Payroll Settings",

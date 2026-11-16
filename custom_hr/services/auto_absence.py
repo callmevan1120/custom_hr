@@ -60,7 +60,8 @@ def covered_dates(employee: str, start: date, end: date) -> set[date]:
 		covered.add(getdate(row.shift_work_date or row.time))
 	for row in frappe.get_all(
 		"Leave Application",
-		filters={"employee": employee, "docstatus": 1, "status": "Approved", "from_date": ["<=", end], "to_date": [">=", start]},
+		# izin per jam is a working day, so it does not excuse a day without check-in
+		filters={"employee": employee, "docstatus": 1, "status": "Approved", "izin_per_jam": 0, "from_date": ["<=", end], "to_date": [">=", start]},
 		fields=["from_date", "to_date"],
 	):
 		covered.update(_each_day(max(getdate(row.from_date), start), min(getdate(row.to_date), end)))
@@ -98,7 +99,8 @@ def mark_department_absences(until: date | None = None) -> int:
 	until = getdate(until or add_days(today(), -1))  # today is still open
 	marked = 0
 	for department in frappe.get_all(
-		"Department", filters={"enable_auto_shift": 1, "auto_shift_effective_from": ["is", "set"]},
+		"Department", filters={"auto_shift_effective_from": ["is", "set"]},
+		or_filters={"enable_auto_shift": 1, "manual_shift_choice": 1},
 		fields=["name", "auto_shift_effective_from"],
 	):
 		rows = frappe.get_all(
