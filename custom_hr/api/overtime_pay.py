@@ -3,7 +3,7 @@
 
 """Kalkulasi upah lembur PP 35/2021 (hari kerja) dari pengajuan disetujui.
 
-Basis upah sebulan = komponen di HRM Payroll Settings: yang ditandai
+Basis upah sebulan = komponen di Payroll Settings (tab HRM): yang ditandai
 "Dari Base SSA" memakai Base Salary Structure Assignment, sisanya memakai
 amount baris struktur (formula belum didukung). Upah sejam = basis / 173.
 
@@ -82,33 +82,50 @@ def _wage_base(employee, on_date, settings):
 	return base
 
 
-def paid_overtime(from_date, to_date, employee=None) -> dict:
-	"""{(employee, date): {hours, overtime_type}}; hours = min(actual overtime on the attendance, approved planned hours)."""
+def approved_overtime_requests(
+	from_date,
+	to_date,
+	employee=None,
+	exclude_request: str | None = None,
+) -> dict:
+	"""{(employee, date): {request, hours, overtime_type}} for approved Overtime Request rows in range."""
+	req_filters = {"status": ["!=", "Ditolak"], "date": ["between", [from_date, to_date]]}
+	if exclude_request:
+		req_filters["name"] = ["!=", exclude_request]
+
 	requests = frappe.get_all(
 		"Overtime Request",
-		filters={"status": ["!=", "Ditolak"], "date": ["between", [from_date, to_date]]},
+		filters=req_filters,
 		fields=["name", "date", "planned_hours", "status", "overtime_type"],
 		ignore_permissions=True,
 	)
 	planned = {}
-	if requests:
-		req_map = {r.name: r for r in requests}
-		row_filters = {"parent": ["in", list(req_map)]}
-		if employee:
-			row_filters["employee"] = employee
-		for row in frappe.get_all(
-			"Overtime Request Employee",
-			filters=row_filters,
-			fields=["parent", "employee", "approval_state"],
-			ignore_permissions=True,
-		):
-			req = req_map[row.parent]
-			if (row.get("approval_state") or req.status) != "Disetujui":
-				continue
-			key = (row.employee, getdate(req.date))
-			cap = flt(req.planned_hours)
-			if key not in planned or cap < planned[key][0]:
-				planned[key] = (cap, req.overtime_type)
+	if not requests:
+		return planned
+
+	req_map = {r.name: r for r in requests}
+	row_filters = {"parent": ["in", list(req_map)]}
+	if employee:
+		row_filters["employee"] = employee
+	for row in frappe.get_all(
+		"Overtime Request Employee",
+		filters=row_filters,
+		fields=["parent", "employee", "approval_state"],
+		ignore_permissions=True,
+	):
+		req = req_map[row.parent]
+		if (row.get("approval_state") or req.status) != "Disetujui":
+			continue
+		key = (row.employee, getdate(req.date))
+		cap = flt(req.planned_hours)
+		if key not in planned or cap < planned[key].hours:
+			planned[key] = frappe._dict(request=req.name, hours=cap, overtime_type=req.overtime_type)
+	return planned
+
+
+def paid_overtime(from_date, to_date, employee=None) -> dict:
+	"""{(employee, date): {hours, overtime_type}}; hours = min(actual overtime on the attendance, approved planned hours)."""
+	planned = approved_overtime_requests(from_date, to_date, employee=employee)
 	if not planned:
 		return {}
 
@@ -126,8 +143,8 @@ def paid_overtime(from_date, to_date, employee=None) -> dict:
 		(a.employee, getdate(a.attendance_date)): flt(a.actual_overtime_duration) for a in attendance
 	}
 	paid = {
-		key: frappe._dict(hours=min(actual.get(key, 0), cap), overtime_type=overtime_type)
-		for key, (cap, overtime_type) in planned.items()
+		key: frappe._dict(hours=min(actual.get(key, 0), row.hours), overtime_type=row.overtime_type)
+		for key, row in planned.items()
 	}
 	return {key: row for key, row in paid.items() if row.hours > 0}
 
@@ -170,7 +187,7 @@ def overtime_pay(employee, overtime: dict, from_date, to_date) -> float:
 
 def collect_month(bulan=None):
 	"""Satu baris per karyawan: jam lembur terutang + rincian upahnya."""
-	settings = frappe.get_cached_doc("HRM Payroll Settings")
+	settings = frappe.get_cached_doc("Payroll Settings")
 	from_date, to_date = _month_bounds(bulan)
 	divisor = flt(settings.overtime_hourly_divisor) or 173
 
@@ -231,7 +248,7 @@ def generate_overtime_salary(bulan=None):
 	result = collect_month(bulan)
 	component = result["overtime_salary_component"]
 	if not component:
-		frappe.throw(_("Set komponen upah lembur di HRM Payroll Settings"))
+		frappe.throw(_("Set komponen upah lembur di Payroll Settings (tab HRM)"))
 
 	created, skipped = [], []
 	for row in result["rows"]:

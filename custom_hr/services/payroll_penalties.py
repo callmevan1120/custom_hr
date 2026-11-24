@@ -1,7 +1,7 @@
 """Attendance counts, overtime hours, allowances and HR rates on the Salary Slip, for Salary Structure formulas to use."""
 
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import add_days, cint, flt, getdate
 from frappe.utils.nestedset import get_ancestors_of
 
 from custom_hr.api.overtime_pay import overtime_pay, paid_overtime
@@ -27,7 +27,7 @@ def fill_attendance_penalties(doc, method=None):
 		fields=["status", "late_entry", "early_exit", "missing_checkout", "shift", "leave_type"],
 		ignore_permissions=True,
 	)
-	settings = frappe.get_cached_doc("HRM Payroll Settings")
+	settings = frappe.get_cached_doc("Payroll Settings")
 	rate = rate_for(settings.attendance_penalty_rates, doc.company)
 	worked = [day for day in days if day.status in COUNTED_STATUSES]
 	# leave earns meal and daily wage only when HR ticked its Leave Type
@@ -39,12 +39,14 @@ def fill_attendance_penalties(doc, method=None):
 		and frappe.get_cached_value("Leave Type", day.leave_type, "dihitung_hadir")
 	]
 	doc.jumlah_hadir = sum(0.5 if day.status == HALF_DAY else 1 for day in worked) + len(paid_leave)
-	# only the shifts HR listed in HRM Payroll Settings earn an allowance
+	doc.hari_kerja = working_days(doc.start_date, doc.end_date)
+	# only the shifts HR listed in Payroll Settings (tab HRM) earn an allowance
 	allowance = {row.shift_type: flt(row.tunjangan) for row in settings.shift_allowances}
 	doc.tunjangan_shift = sum(allowance.get(day.shift, 0) for day in worked)
-	# HR sets which designations earn an allowance, and how much, on the Designation itself
+	# HR lists which designations earn an allowance, and how much, in Payroll Settings (tab HRM)
+	by_designation = {row.designation: row for row in settings.designation_allowances}
 	for field in ("tunjangan_jabatan", "tunjangan_resiko"):
-		setattr(doc, field, flt(frappe.get_cached_value("Designation", doc.designation, field)) if doc.designation else 0)
+		setattr(doc, field, flt(by_designation.get(doc.designation, {}).get(field)))
 	# recorded Absent only: unmarked days (off days with a no-holiday list) are not alpha
 	doc.jumlah_alpha = frappe.db.count(
 		"Attendance",
@@ -70,7 +72,7 @@ def bpjs_values(doc, ssa) -> dict:
 
 	doc is a slip or the assignment's formula context: both carry employee, company and department.
 	"""
-	settings = frappe.get_cached_doc("HRM Payroll Settings")
+	settings = frappe.get_cached_doc("Payroll Settings")
 	if frappe.get_cached_value("Employee", doc.employee, "tidak_ikut_bpjs"):
 		base = 0
 	else:
@@ -89,6 +91,15 @@ def daily_rate(doc, settings):
 	# a sub-department takes its parent's rate, e.g. a Jakarta team under Jakarta
 	departments = [doc.department, *get_ancestors_of("Department", doc.department)] if doc.department else []
 	return daily_rate_for(settings.daily_rates, doc.company, departments)
+
+
+def working_days(start, end) -> int:
+	"""Divisor of a prorated Gaji Pokok: the period's Mondays to Fridays (23 for 26 Aug-25 Sep, 20 for 26 Sep-25 Oct).
+
+	shortcut: public holidays are not taken out, HR keeps no holiday list; read the Holiday List once they keep one.
+	"""
+	start, end = getdate(start), getdate(end)
+	return sum(add_days(start, i).weekday() < 5 for i in range((end - start).days + 1))
 
 
 def rate_for(rows, company):

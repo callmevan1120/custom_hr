@@ -10,8 +10,15 @@ after_install = [
 	"custom_hr.patches.remove_legacy_leave_approval_fields.execute",
 	"custom_hr.patches.add_leave_calendar_sidebar.execute",
 ]
-after_migrate = "custom_hr.patches.add_leave_calendar_sidebar.execute"
-after_sync = "custom_hr.install.set_default_overtime_component"
+after_migrate = [
+	"custom_hr.patches.add_leave_calendar_sidebar.execute",
+	"custom_hr.services.pph21_ter_seed.seed_defaults",
+	"custom_hr.services.attendance_overtime.sync_existing_attendances",
+]
+after_sync = [
+	"custom_hr.install.set_default_overtime_component",
+	"custom_hr.services.pph21_ter_seed.seed_defaults",
+]
 
 scheduler_events = {
 	"daily": [
@@ -53,6 +60,7 @@ doctype_js = {
 	"Outlet": ["public/js/outlet.js", "public/js/shift_days.js"],
 	"Overtime Request": "public/js/overtime_request.js",
 	"Payroll Entry": "public/js/payroll_entry_match.js",
+	"Salary Structure": "public/js/salary_structure.js",
 	"Shift Location": "public/js/shift_location.js",
 }
 
@@ -106,6 +114,9 @@ override_whitelisted_methods = {
 }
 
 doc_events = {
+	"Company": {
+		"on_update": "custom_hr.services.component_accounts.on_company_update",
+	},
 	"Department": {
 		"validate": [
 			"custom_hr.services.department_shift.validate_department",
@@ -116,10 +127,19 @@ doc_events = {
 		"validate": [
 			"custom_hr.services.attendance_duration.fill_durations",
 			"custom_hr.services.hourly_leave.fill_attendance_izin",
+			"custom_hr.services.attendance_overtime.fill_attendance_overtime",
 		],
+		"on_update_after_submit": "custom_hr.services.attendance_overtime.fill_attendance_overtime",
+	},
+	"Overtime Request": {
+		"on_update": "custom_hr.services.attendance_overtime.stamp_request_attendances",
+		"on_trash": "custom_hr.services.attendance_overtime.clear_request_attendances",
 	},
 	"Employee": {
 		"validate": "custom_hr.services.employee_outlet.fill_outlet",
+	},
+	"HR Settings": {
+		"on_update": "custom_hr.services.employee_nip.keep_visible",
 	},
 	"Leave Application": {
 		"before_validate": [
@@ -137,6 +157,13 @@ doc_events = {
 	},
 	"Salary Slip": {
 		"before_validate": "custom_hr.services.payroll_penalties.fill_attendance_penalties",
+	},
+	"Payroll Settings": {
+		"validate": [
+			"custom_hr.services.payroll_settings.validate",
+			"custom_hr.services.pph21_ter.validate_settings",
+		],
+		"on_update": "custom_hr.services.component_accounts.on_settings_update",
 	},
 	"Shift Location": {
 		"on_update": "custom_hr.services.outlet_location.sync_location_radius_to_outlet",
@@ -179,6 +206,7 @@ fixtures = [
 					"Attendance-company-in_standard_filter",
 					"Attendance-department-in_standard_filter",
 					"Employee-employee_number-label",
+					"Salary Slip-main-default_print_format",
 				],
 			]
 		],
@@ -227,6 +255,7 @@ fixtures = [
 					"Salary Slip-jumlah_pulang_cepat",
 					"Salary Slip-jumlah_tidak_out",
 					"Salary Slip-jumlah_hadir",
+					"Salary Slip-hari_kerja",
 					"Salary Slip-jumlah_alpha",
 					"Salary Slip-jam_izin",
 					"Salary Slip-jam_lembur",
@@ -234,15 +263,22 @@ fixtures = [
 					"Salary Slip-tunjangan_shift",
 					"Salary Slip-tunjangan_jabatan",
 					"Salary Slip-tunjangan_resiko",
-					"Designation-tunjangan_jabatan",
-					"Designation-tunjangan_resiko",
+					"Payroll Settings-designation_allowance_section",
+					"Payroll Settings-designation_allowances",
+					"Payroll Settings-component_account_section",
+					"Payroll Settings-component_accounts",
 					"Leave Type-dihitung_hadir",
+					"HR Settings-batasi_checkout_awal",
+					"HR Settings-checkout_dibuka_menit",
 					"Leave Type-izin_per_jam",
 					"Leave Application-izin_per_jam",
 					"Leave Application-from_time",
 					"Leave Application-to_time",
 					"Leave Application-jam_izin",
 					"Attendance-jam_izin",
+					"Attendance-overtime_request",
+					"Attendance-approved_overtime_hours",
+					"Attendance-paid_overtime_hours",
 					"Salary Slip-attendance_penalty_column",
 					"Salary Slip-tarif_telat",
 					"Salary Slip-tarif_pulang_cepat",
@@ -251,6 +287,27 @@ fixtures = [
 					"Salary Slip-tarif_transport",
 					"Salary Slip-dasar_bpjs",
 					"Employee-tidak_ikut_bpjs",
+					"Payroll Settings-hrm_tab",
+					"Payroll Settings-wage_base_section",
+					"Payroll Settings-wage_base_components",
+					"Payroll Settings-column_break_wage",
+					"Payroll Settings-overtime_salary_component",
+					"Payroll Settings-overtime_hourly_divisor",
+					"Payroll Settings-driver_report_opens_at",
+					"Payroll Settings-daily_rate_section",
+					"Payroll Settings-daily_rates",
+					"Payroll Settings-bpjs_section",
+					"Payroll Settings-bpjs_rates",
+					"Payroll Settings-attendance_penalty_section",
+					"Payroll Settings-attendance_penalty_rates",
+					"Payroll Settings-shift_allowance_section",
+					"Payroll Settings-shift_allowances",
+					"Payroll Settings-match_section",
+					"Payroll Settings-match_columns",
+					"Payroll Settings-je_section",
+					"Payroll Settings-outlet_expense_account_number",
+					"Payroll Settings-intercompany_receivable_account_number",
+					"Payroll Settings-intercompany_payable_account_name",
 					"Salary Component-show_in_period_input",
 					"Department-auto_shift_section",
 					"Department-enable_auto_shift",
@@ -266,6 +323,17 @@ fixtures = [
 					"HR Settings-require_face_checkin",
 					"HR Settings-face_match_threshold",
 					"HR Settings-face_enroll_samples",
+					"HR Settings-grooming_deadline_minutes",
+					"Employee-dependents",
+					"Employee-nik",
+					"Payroll Settings-pph21_ter_section",
+					"Payroll Settings-enable_pph21_ter",
+					"Payroll Settings-pph21_ter_companies",
+					"Payroll Settings-pph21_ptkp_map",
+					"Payroll Settings-pph21_employer_bpjs",
+					"Payroll Settings-pph21_ter_rates",
+					"Salary Slip-dasar_bruto_pph21",
+					"Salary Slip-tarif_ter_pph21",
 				],
 			]
 		],
