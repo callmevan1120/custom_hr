@@ -13,6 +13,7 @@ after_install = [
 after_migrate = [
 	"custom_hr.patches.add_leave_calendar_sidebar.execute",
 	"custom_hr.services.pph21_ter_seed.seed_defaults",
+	"custom_hr.services.payroll_payable.seed_default_payable_account_number",
 	"custom_hr.services.attendance_overtime.sync_existing_attendances",
 ]
 after_sync = [
@@ -57,11 +58,14 @@ app_include_js = "custom_hr.bundle.js"
 doctype_js = {
 	"Department": "public/js/shift_days.js",
 	"Employee": "public/js/employee_face.js",
+	"Leave Application": "public/js/leave_application.js",
 	"Outlet": ["public/js/outlet.js", "public/js/shift_days.js"],
 	"Overtime Request": "public/js/overtime_request.js",
 	"Payroll Entry": "public/js/payroll_entry_match.js",
 	"Salary Structure": "public/js/salary_structure.js",
+	"Salary Structure Assignment": "public/js/salary_structure_assignment.js",
 	"Shift Location": "public/js/shift_location.js",
+	"Shift Request": "public/js/shift_request.js",
 }
 
 doctype_list_js = {
@@ -145,11 +149,15 @@ doc_events = {
 		"before_validate": [
 			"custom_hr.services.leave_approver.fill_leave_approver",
 			"custom_hr.services.hourly_leave.validate_hourly_leave",
+			"custom_hr.services.employee_scope.validate_leave_application_scope",
 		],
 		"on_submit": "custom_hr.services.hourly_leave.stamp_attendance_izin",
 		"on_cancel": "custom_hr.services.hourly_leave.stamp_attendance_izin",
 		"after_insert": "custom_hr.services.leave_approver.submit_to_approver",
 		"on_update": "custom_hr.services.leave_approver.hand_over_to_approver_2",
+	},
+	"Shift Request": {
+		"before_validate": "custom_hr.services.employee_scope.validate_shift_request_scope",
 	},
 	"Leave Type": {
 		"validate": "custom_hr.services.leave_auto_allocation.validate_leave_type",
@@ -157,6 +165,16 @@ doc_events = {
 	},
 	"Salary Slip": {
 		"before_validate": "custom_hr.services.payroll_penalties.fill_attendance_penalties",
+	},
+	"Salary Structure Assignment": {
+		"before_validate": "custom_hr.services.payroll_payable.fill_payable_account",
+	},
+	"Salary Structure": {
+		"validate": "custom_hr.services.salary_structure_template.validate_template",
+		"on_update_after_submit": "custom_hr.services.salary_structure_template.validate_template",
+	},
+	"Outlet": {
+		"after_insert": "custom_hr.services.salary_structure_template.on_outlet_insert",
 	},
 	"Payroll Settings": {
 		"validate": [
@@ -326,14 +344,25 @@ fixtures = [
 					"HR Settings-grooming_deadline_minutes",
 					"Employee-dependents",
 					"Employee-nik",
+					"Payroll Settings-hrm_accounting_tax_tab",
+					"Payroll Settings-default_payroll_payable_account_number",
 					"Payroll Settings-pph21_ter_section",
 					"Payroll Settings-enable_pph21_ter",
 					"Payroll Settings-pph21_ter_companies",
+					"Payroll Settings-pph21_ter_tables_section",
 					"Payroll Settings-pph21_ptkp_map",
 					"Payroll Settings-pph21_employer_bpjs",
 					"Payroll Settings-pph21_ter_rates",
 					"Salary Slip-dasar_bruto_pph21",
 					"Salary Slip-tarif_ter_pph21",
+					"Salary Structure-is_master_template",
+					"Salary Structure-template_prefix",
+					"Salary Structure-source_template",
+					"Overtime Type-disabled",
+					"Overtime Type-berlaku_untuk",
+					"Overtime Type-hanya_department",
+					"Leave Type-berlaku_untuk",
+					"Leave Type-hanya_department",
 				],
 			]
 		],
