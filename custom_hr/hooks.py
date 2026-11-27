@@ -56,6 +56,7 @@ app_include_js = "custom_hr.bundle.js"
 # ----------------------------------------------------------------------------
 
 doctype_js = {
+	"Bulk Salary Structure Assignment": "public/js/bulk_salary_structure_assignment.js",
 	"Department": "public/js/shift_days.js",
 	"Employee": "public/js/employee_face.js",
 	"Leave Application": "public/js/leave_application.js",
@@ -70,6 +71,7 @@ doctype_js = {
 
 doctype_list_js = {
 	"Attendance": "public/js/attendance_list.js",
+	"Employee Advance": "public/js/employee_advance_list.js",
 	"Employee Checkin": "public/js/employee_checkin_list.js",
 	"Holiday List Assignment": "public/js/holiday_list_assignment_list.js",
 	"Outlet": "public/js/outlet.js",
@@ -109,12 +111,14 @@ override_doctype_class = {
 	"Attendance": "custom_hr.overrides.attendance.CustomAttendance",
 	"Salary Slip": "custom_hr.overrides.payroll.CustomSalarySlip",
 	"Salary Structure Assignment": "custom_hr.overrides.payroll.CustomSalaryStructureAssignment",
+	"Payroll Entry": "custom_hr.overrides.payroll.CustomPayrollEntry",
 }
 
 override_whitelisted_methods = {
 	"hrms.hr.doctype.leave_application.leave_application.get_leave_approver": "custom_hr.services.leave_approver.get_leave_approver",
 	"hrms.api.get_leave_approval_details": "custom_hr.services.leave_approver.get_leave_approval_details",
 	"hrms.api.get_current_employee_info": "custom_hr.services.employee_outlet.get_current_employee_info",
+	"hrms.payroll.doctype.payroll_entry.payroll_entry.employee_query": "custom_hr.overrides.payroll.payroll_entry_employee_query",
 }
 
 doc_events = {
@@ -159,6 +163,9 @@ doc_events = {
 	"Shift Request": {
 		"before_validate": "custom_hr.services.employee_scope.validate_shift_request_scope",
 	},
+	"Overtime Type": {
+		"validate": "custom_hr.api.overtime_pay.validate_overtime_type",
+	},
 	"Leave Type": {
 		"validate": "custom_hr.services.leave_auto_allocation.validate_leave_type",
 		"on_update": "custom_hr.services.leave_auto_allocation.on_leave_type_update",
@@ -170,11 +177,8 @@ doc_events = {
 		"before_validate": "custom_hr.services.payroll_payable.fill_payable_account",
 	},
 	"Salary Structure": {
-		"validate": "custom_hr.services.salary_structure_template.validate_template",
-		"on_update_after_submit": "custom_hr.services.salary_structure_template.validate_template",
-	},
-	"Outlet": {
-		"after_insert": "custom_hr.services.salary_structure_template.on_outlet_insert",
+		"validate": "custom_hr.services.salary_structure_scope.validate_salary_structure",
+		"on_update_after_submit": "custom_hr.services.salary_structure_scope.validate_salary_structure",
 	},
 	"Payroll Settings": {
 		"validate": [
@@ -225,6 +229,8 @@ fixtures = [
 					"Attendance-department-in_standard_filter",
 					"Employee-employee_number-label",
 					"Salary Slip-main-default_print_format",
+					"Bulk Salary Structure Assignment-company-fetch_from",
+					"Bulk Salary Structure Assignment-company-read_only",
 				],
 			]
 		],
@@ -278,6 +284,8 @@ fixtures = [
 					"Salary Slip-jam_izin",
 					"Salary Slip-jam_lembur",
 					"Salary Slip-upah_lembur",
+					"Salary Slip-upah_lembur_reguler",
+					"Salary Slip-upah_lembur_holiday",
 					"Salary Slip-tunjangan_shift",
 					"Salary Slip-tunjangan_jabatan",
 					"Salary Slip-tunjangan_resiko",
@@ -327,6 +335,7 @@ fixtures = [
 					"Payroll Settings-intercompany_receivable_account_number",
 					"Payroll Settings-intercompany_payable_account_name",
 					"Salary Component-show_in_period_input",
+					"Salary Component-disallow_excel_override",
 					"Department-auto_shift_section",
 					"Department-enable_auto_shift",
 					"Department-manual_shift_choice",
@@ -355,9 +364,9 @@ fixtures = [
 					"Payroll Settings-pph21_ter_rates",
 					"Salary Slip-dasar_bruto_pph21",
 					"Salary Slip-tarif_ter_pph21",
-					"Salary Structure-is_master_template",
-					"Salary Structure-template_prefix",
-					"Salary Structure-source_template",
+					"Salary Structure-lintas_company",
+					"Salary Structure-berlaku_untuk",
+					"Salary Structure-hanya_department",
 					"Overtime Type-disabled",
 					"Overtime Type-berlaku_untuk",
 					"Overtime Type-hanya_department",
